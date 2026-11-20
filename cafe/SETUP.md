@@ -18,19 +18,42 @@
     ".write": false,
     "rooms": {
       "$room": {
-        ".read": "$room.length >= 10",
-        ".write": "$room.length >= 10",
+        ".read": "$room.matches(/^[a-z2-9]{10}$/)",
+        ".write": "$room.matches(/^[a-z2-9]{10}$/)",
+        ".validate": "newData.hasChildren(['createdAt'])",
+        "title": { ".validate": "newData.isString() && newData.val().length <= 30" },
+        "createdAt": { ".validate": "newData.isNumber()" },
+        "menu": {
+          "$i": {
+            ".validate": "$i.matches(/^1?[0-9]?[0-9]$/) && newData.hasChildren(['id', 'name', 't'])",
+            "id": { ".validate": "newData.isString() && newData.val().length <= 20" },
+            "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+            "t": { ".validate": "newData.isString() && newData.val().matches(/^(both|ice|hot|none)$/)" },
+            "price": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000" },
+            "$other": { ".validate": false }
+          }
+        },
         "orders": {
           "$order": {
+            ".validate": "$order.length <= 30 && newData.hasChildren(['menuId', 'temp', 'ts'])",
+            "menuId": { ".validate": "newData.isString() && newData.val().length <= 20" },
+            "temp": { ".validate": "newData.val() === 'ICE' || newData.val() === 'HOT' || newData.val() === ''" },
             "name": { ".validate": "newData.isString() && newData.val().length <= 20" },
-            "note": { ".validate": "newData.isString() && newData.val().length <= 100" }
+            "note": { ".validate": "newData.isString() && newData.val().length <= 100" },
+            "got": { ".validate": "newData.isBoolean()" },
+            "ts": { ".validate": "newData.isNumber()" },
+            "by": { ".validate": "newData.isString() && newData.val().matches(/^(host|guest)$/)" },
+            "$other": { ".validate": false }
           }
-        }
+        },
+        "$other": { ".validate": false }
       }
     }
   }
 }
 ```
+
+같은 내용이 저장소의 `cafe/database.rules.json` 파일에도 있습니다.
 
 5. **데이터** 탭 맨 위에 보이는 주소를 복사합니다.
    예: `https://cafe-order-1234-default-rtdb.asia-southeast1.firebasedatabase.app`
@@ -39,6 +62,7 @@
 
 > 무료 요금제(Spark)로 충분합니다. 한 번 주문할 때 오가는 데이터는 몇 KB 정도입니다.
 > 주문 방마다 추측하기 어려운 10자리 코드를 쓰고, 방 목록은 아무도 볼 수 없습니다.
+> 규칙이 저장할 수 있는 항목과 글자 수(이름 20자, 요청사항 100자, 메뉴 이름 40자, 메뉴 200개)를 정해 두어 엉뚱한 데이터가 쌓이지 않습니다.
 > 이름과 요청사항 외에 개인정보는 저장하지 않습니다. **링크 주문 마감하기**를 누르면 서버에서 방이 지워집니다.
 
 ## 1-2. (선택) 메뉴판 사진을 AI로 정확하게 읽기 — 약 2분

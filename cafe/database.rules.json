@@ -1,0 +1,39 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "rooms": {
+      "$room": {
+        ".read": "$room.matches(/^[a-z2-9]{10}$/)",
+        ".write": "$room.matches(/^[a-z2-9]{10}$/)",
+        ".validate": "newData.hasChildren(['createdAt'])",
+        "title": { ".validate": "newData.isString() && newData.val().length <= 30" },
+        "createdAt": { ".validate": "newData.isNumber()" },
+        "menu": {
+          "$i": {
+            ".validate": "$i.matches(/^1?[0-9]?[0-9]$/) && newData.hasChildren(['id', 'name', 't'])",
+            "id": { ".validate": "newData.isString() && newData.val().length <= 20" },
+            "name": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+            "t": { ".validate": "newData.isString() && newData.val().matches(/^(both|ice|hot|none)$/)" },
+            "price": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000" },
+            "$other": { ".validate": false }
+          }
+        },
+        "orders": {
+          "$order": {
+            ".validate": "$order.length <= 30 && newData.hasChildren(['menuId', 'temp', 'ts'])",
+            "menuId": { ".validate": "newData.isString() && newData.val().length <= 20" },
+            "temp": { ".validate": "newData.val() === 'ICE' || newData.val() === 'HOT' || newData.val() === ''" },
+            "name": { ".validate": "newData.isString() && newData.val().length <= 20" },
+            "note": { ".validate": "newData.isString() && newData.val().length <= 100" },
+            "got": { ".validate": "newData.isBoolean()" },
+            "ts": { ".validate": "newData.isNumber()" },
+            "by": { ".validate": "newData.isString() && newData.val().matches(/^(host|guest)$/)" },
+            "$other": { ".validate": false }
+          }
+        },
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}
