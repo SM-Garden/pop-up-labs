@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#6b3e26">
+<title>단체 커피 주문</title>
+<style>
+  :root {
+    --bg: #faf6f1; --card: #ffffff; --ink: #2b1d14; --sub: #7a6a5e; --line: #e8ddd2;
+    --brand: #6b3e26; --brand-ink: #ffffff; --ice: #1f6fb2; --ice-bg: #e7f1fa;
+    --hot: #c2410c; --hot-bg: #fdeee5; --ok: #15803d; --ok-bg: #e6f4ea; --danger: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17120e; --card: #231b15; --ink: #f5ece4; --sub: #b3a395; --line: #3a2e25;
+      --brand: #d9a679; --brand-ink: #1a120c; --ice: #7cc0f5; --ice-bg: #16283a;
+      --hot: #fb9a63; --hot-bg: #3a2014; --ok: #6ee7a0; --ok-bg: #133022; --danger: #f87171;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { background: var(--bg); color: var(--ink); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+    font-size: 18px; line-height: 1.4; min-height: 100vh;
+    padding-bottom: calc(92px + env(safe-area-inset-bottom));
+  }
+  body.guest { padding-bottom: 24px; }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+  button:disabled { opacity: .45; cursor: default; }
+  header {
+    position: sticky; top: 0; z-index: 5; background: var(--bg);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 14px 16px 10px; border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 21px; word-break: keep-all; }
+  header .total { font-size: 16px; color: var(--sub); white-space: nowrap; }
+  header .total b { color: var(--brand); font-size: 22px; }
+  .icon-btn { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); font-size: 15px; background: var(--card); white-space: nowrap; }
+  main { max-width: 720px; margin: 0 auto; padding: 14px 16px; }
+  .hint { color: var(--sub); font-size: 15px; margin-bottom: 12px; word-break: keep-all; }
+  .page { display: none; }
+  .page.on { display: block; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; margin-bottom: 12px; }
+  .share h2 { font-size: 18px; margin-bottom: 4px; }
+  .share .live { font-size: 15px; color: var(--ok); font-weight: 700; }
+  .share .two { display: flex; gap: 8px; margin-top: 10px; }
+  .share .two .big-btn { margin-top: 0; flex: 1; padding: 15px 8px; font-size: 17px; }
+  .toggle { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 16px; font-weight: 700; cursor: pointer; }
+  .toggle input { appearance: none; -webkit-appearance: none; width: 48px; height: 28px; border-radius: 14px; background: var(--line); position: relative; flex: none; cursor: pointer; transition: background .15s; }
+  .toggle input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: left .15s; }
+  .toggle input:checked { background: var(--brand); }
+  .toggle input:checked::after { left: 23px; }
+  .toggle input:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .toggle small { display: block; font-weight: 400; font-size: 13px; color: var(--sub); }
+  .link-box { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: var(--bg); border: 1px dashed var(--line); font-size: 14px; word-break: break-all; user-select: all; color: var(--sub); }
+
+  /* 음료 고르기 */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 10px; }
+  .drink { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 10px; }
+  .drink .nm { font-weight: 700; font-size: 18px; margin: 2px 4px 8px; word-break: keep-all; }
+  .drink .btns { display: flex; gap: 6px; }
+  .tap {
+    flex: 1; min-height: 74px; border-radius: 12px; font-weight: 700; font-size: 17px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    transition: transform .06s;
+  }
+  .tap:active { transform: scale(.94); }
+  .tap.ice { background: var(--ice-bg); color: var(--ice); }
+  .tap.hot { background: var(--hot-bg); color: var(--hot); }
+  .tap.one { background: var(--bg); color: var(--ink); border: 1px solid var(--line); }
+  .tap > span:first-child { font-size: 15px; line-height: 1.2; white-space: nowrap; text-align: center; }
+  .tap .n { font-size: 26px; line-height: 1; }
+  .tap .n.zero { opacity: .3; }
+
+  /* 주문 목록 */
+  .list { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 14px; border-top: 1px solid var(--line); }
+  .row:first-child { border-top: 0; }
+  .row .lbl { flex: 1; font-weight: 700; font-size: 19px; word-break: keep-all; }
+  .row .lbl small { display: block; font-weight: 400; font-size: 14px; color: var(--sub); }
+  .pm { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); font-size: 24px; line-height: 1; background: var(--bg); }
+  .cnt { min-width: 44px; text-align: center; font-size: 24px; font-weight: 800; color: var(--brand); }
+  .tag { display: inline-block; font-size: 13px; padding: 1px 7px; border-radius: 6px; margin-right: 4px; vertical-align: 2px; font-weight: 700; }
+  .tag.ICE { background: var(--ice-bg); color: var(--ice); }
+  .tag.HOT { background: var(--hot-bg); color: var(--hot); }
+  .big-btn {
+    display: block; width: 100%; padding: 18px; border-radius: 14px; font-size: 19px; font-weight: 800;
+    background: var(--brand); color: var(--brand-ink); margin-top: 12px;
+  }
+  .big-btn.ghost { background: var(--card); color: var(--ink); border: 1px solid var(--line); font-weight: 700; }
+  .empty { text-align: center; color: var(--sub); padding: 40px 10px; }
+
+  /* 나눠주기 */
+  .progress { height: 10px; border-radius: 6px; background: var(--line); overflow: hidden; margin: 6px 0 14px; }
+  .progress i { display: block; height: 100%; background: var(--ok); transition: width .2s; }
+  .group { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px; margin-bottom: 10px; }
+  .group h3 { font-size: 18px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .group h3 .call { font-size: 14px; padding: 6px 10px; border-radius: 8px; background: var(--brand); color: var(--brand-ink); white-space: nowrap; }
+  .group.done { opacity: .5; }
+  .cups { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cup {
+    min-height: 48px; min-width: 64px; padding: 8px 14px; border-radius: 12px; border: 2px solid var(--line);
+    background: var(--bg); font-weight: 700; font-size: 17px;
+  }
+  .cup.got { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); text-decoration: line-through; }
+  .cup .note { display: block; font-size: 12px; font-weight: 400; color: var(--sub); text-decoration: none; }
+
+  nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: flex;
+    background: var(--card); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom);
+  }
+  nav button { flex: 1; padding: 10px 4px 12px; font-size: 15px; font-weight: 700; color: var(--sub); }
+  nav button .e { display: block; font-size: 26px; line-height: 1.2; }
+  nav button.on { color: var(--brand); box-shadow: inset 0 3px 0 var(--brand); }
+  body.guest nav, body.guest .host-only { display: none !important; }
+  body:not(.guest) .guest-only { display: none !important; }
+
+  .snack {
+    position: fixed; left: 12px; right: 12px; bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 50;
+    max-width: 696px; margin: 0 auto; background: var(--ink); color: var(--bg);
+    border-radius: 14px; padding: 10px 10px 10px 16px; display: flex; align-items: center; gap: 8px; min-height: 52px;
+    transform: translateY(20px); opacity: 0; pointer-events: none; transition: .18s;
+  }
+  body.guest .snack { bottom: calc(20px + env(safe-area-inset-bottom)); }
+  .snack.on { transform: none; opacity: 1; pointer-events: auto; }
+  .snack .msg { flex: 1; font-size: 16px; font-weight: 700; word-break: keep-all; }
+  .snack button { padding: 10px 12px; border-radius: 10px; background: rgba(127,127,127,.28); color: var(--bg); font-size: 15px; font-weight: 700; white-space: nowrap; }
+
+  .show {
+    position: fixed; inset: 0; z-index: 30; background: #fff; color: #000; display: none;
+    flex-direction: column; padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+  }
+  .show.on { display: flex; }
+  .show .body { flex: 1; overflow: auto; }
+  .show .line { font-size: clamp(26px, 7.5vw, 44px); font-weight: 800; padding: 8px 0; border-bottom: 2px solid #eee; display: flex; justify-content: space-between; gap: 12px; word-break: keep-all; }
+  .show .line span:last-child { white-space: nowrap; }
+  .show .sum { font-size: clamp(24px, 6vw, 36px); font-weight: 800; padding-top: 14px; text-align: right; }
+  .show .who { font-size: clamp(30px, 9vw, 56px); font-weight: 800; text-align: center; margin-top: 18px; word-break: keep-all; }
+  .show .what { font-size: clamp(34px, 11vw, 72px); font-weight: 900; text-align: center; margin-top: 12vh; word-break: keep-all; }
+  .show .qr { display: flex; justify-content: center; margin-top: 4vh; }
+  .show .qr svg { width: min(78vw, 60vh); height: auto; }
+  .show .foot { display: flex; gap: 10px; }
+  .show .foot button { flex: 1; padding: 18px; border-radius: 14px; font-size: 20px; font-weight: 800; background: #222; color: #fff; }
+  .show .foot button.alt { background: #eee; color: #000; }
+
+  .modal { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.45); display: none; align-items: flex-end; justify-content: center; }
+  .modal.on { display: flex; }
+  .sheet { background: var(--card); width: 100%; max-width: 720px; max-height: 90vh; overflow: auto; border-radius: 20px 20px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); }
+  .sheet h2 { font-size: 20px; margin-bottom: 12px; word-break: keep-all; }
+  .sheet input[type=text] { width: 100%; font: inherit; font-size: 20px; padding: 14px; border-radius: 12px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); }
+  .sheet input[type=text]:focus { outline: none; border-color: var(--brand); }
+  .quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .quick button { padding: 8px 12px; border-radius: 20px; border: 1px solid var(--line); font-size: 15px; background: var(--bg); }
+  .quick button.on { border-color: var(--brand); color: var(--brand); font-weight: 700; }
+  .two { display: flex; gap: 8px; }
+  .two .big-btn { flex: 1; }
+  .menu-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .menu-row span { flex: 1; font-weight: 700; word-break: keep-all; }
+  .menu-row button { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); font-size: 14px; }
+  .seg { display: flex; gap: 6px; margin: 10px 0; }
+  .seg button { flex: 1; padding: 12px 4px; border-radius: 10px; border: 2px solid var(--line); font-size: 14px; font-weight: 700; }
+  .seg button.on { border-color: var(--brand); color: var(--brand); }
+  .sec { margin-top: 22px; font-size: 15px; font-weight: 800; color: var(--sub); }
+
+  /* 사진으로 메뉴 불러오기 결과 */
+  .scan-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .scan-row input[type=checkbox] { width: 26px; height: 26px; accent-color: var(--brand); flex: none; }
+  .scan-row .scan-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .scan-row input[type=text] { font-size: 17px; padding: 8px 10px; width: 100%; }
+  .scan-row small { font-size: 13px; color: var(--sub); padding-left: 4px; font-variant-numeric: tabular-nums; }
+  .scan-row select { font: inherit; font-size: 14px; padding: 8px 4px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); flex: none; }
+  .bar { height: 12px; border-radius: 6px; background: var(--line); overflow: hidden; margin: 14px 0 6px; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--brand); transition: width .3s; }
+
+  /* 참여자 화면 */
+  .done-box { text-align: center; padding: 18px 10px 10px; }
+  .done-box .big { font-size: 56px; }
+  .done-box h2 { font-size: 24px; margin: 8px 0 4px; word-break: keep-all; }
+  .mine { text-align: left; margin-bottom: 20px; }
+  .mine .row .lbl { font-size: 18px; }
+  .mine .row button { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); font-size: 15px; color: var(--danger); }
+  .got-badge { color: var(--ok); font-weight: 800; font-size: 15px; }
+  .err { background: var(--hot-bg); color: var(--hot); border-radius: 12px; padding: 12px 14px; font-size: 15px; margin-bottom: 12px; font-weight: 700; word-break: keep-all; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="title">☕ 단체 주문</h1>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span class="total host-only">총 <b id="total">0</b>잔</span>
+    <button class="icon-btn host-only" id="openSettings">⚙︎ 설정</button>
+  </div>
+</header>
+
+<main>
+  <!-- ===== 총무 화면 ===== -->
+  <section class="page on host-only" id="p-collect">
+    <div class="card share" id="shareCard"></div>
+    <p class="hint">폰이 없거나 어려운 분은 여기서 대신 눌러 주세요. 한 번 누를 때마다 한 잔이 추가돼요.</p>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section class="page host-only" id="p-order">
+    <p class="hint">카운터에서 <b>[점원에게 보여주기]</b>를 누르고 화면을 그대로 보여 주세요.</p>
+    <div id="orderList"></div>
+    <button class="big-btn" id="showOrder">📣 점원에게 보여주기</button>
+    <button class="big-btn ghost" id="copyOrder">📋 주문 내용 복사 (카톡 공유)</button>
+  </section>
+
+  <section class="page host-only" id="p-give">
+    <p class="hint">음료가 나오면 <b>[부르기]</b>를 눌러 크게 보여 주고, 건넨 잔은 눌러서 체크하세요.</p>
+    <div id="giveHead"></div>
+    <div id="giveList"></div>
+  </section>
+
+  <!-- ===== 참여자 화면 (링크로 들어온 사람) ===== -->
+  <section class="page guest-only" id="p-guest">
+    <div id="guestErr"></div>
+    <div id="guestMine"></div>
+    <p class="hint" id="guestHint">마실 음료를 <b>한 번 누르고</b>, 이름만 적으면 끝이에요.</p>
+    <div class="grid" id="guestGrid"></div>
+  </section>
+</main>
+
+<nav class="host-only">
+  <button class="on" data-p="collect"><span class="e">✋</span>① 모으기</button>
+  <button data-p="order"><span class="e">🧾</span>② 주문하기</button>
+  <button data-p="give"><span class="e">🤲</span>③ 나눠주기</button>
+</nav>
+
+<div class="snack" id="snack">
+  <span class="msg" id="snackMsg"></span>
+  <button id="snackName">이름 적기</button>
+  <button id="snackUndo">취소</button>
+</div>
+
+<div class="show" id="show">
+  <div class="body" id="showBody"></div>
+  <div class="foot" id="showFoot"></div>
+</div>
+
+<!-- 이름/요청사항 입력 (총무의 대리 입력, 참여자 주문 공통) -->
+<div class="modal" id="nameModal">
+  <div class="sheet">
+    <h2 id="nameTitle">누구 음료인가요?</h2>
+    <input type="text" id="nameInput" placeholder="이름 (예: 김집사)" autocomplete="off" maxlength="20">
+    <p class="sec">요청사항 (선택)</p>
+    <div class="quick" id="noteQuick"></div>
+    <div class="two" style="margin-top:14px">
+      <button class="big-btn ghost" id="nameCancel">닫기</button>
+      <button class="big-btn" id="nameOk">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 설정 -->
+<div class="modal" id="setModal">
+  <div class="sheet">
+    <h2>설정</h2>
+    <button class="big-btn" id="newOrder">🔄 새 주문 시작 (모두 지우기)</button>
+
+    <p class="sec">모임 이름 (링크 받은 사람에게 보여요)</p>
+    <input type="text" id="titleInput" placeholder="예: 청년부 카페 모임" style="margin-top:8px" maxlength="30">
+
+    <p class="sec">이 카페 메뉴 불러오기</p>
+    <button class="big-btn" id="scanMenu">📷 메뉴판 사진으로 불러오기</button>
+    <input type="file" id="scanFile" accept="image/*" multiple hidden>
+    <p class="hint" style="margin-top:6px">메뉴판을 정면에서 밝게 찍으면 잘 읽혀요. 메뉴판이 여러 장이면 사진을 한 번에 4장까지 고를 수 있어요.</p>
+    <p class="sec">AI로 더 정확하게 읽기 (선택)</p>
+    <input type="text" id="aiKeyInput" placeholder="Gemini API 키 붙여넣기" autocomplete="off" style="margin-top:8px;font-size:15px">
+    <p class="hint" style="margin-top:6px">키가 있으면 사진을 Google Gemini가 읽어서 메뉴만 골라 줘요. 무료로 받을 수 있고(SETUP.md 참고), 키는 이 폰에만 저장돼요. 키가 없으면 사진을 폰 안에서만 읽어요.</p>
+
+    <p class="sec">메뉴 하나씩 추가</p>
+    <input type="text" id="newMenu" placeholder="예: 자몽에이드" style="margin-top:8px">
+    <div class="seg" id="tempSeg">
+      <button data-t="both" class="on">아이스+따뜻</button>
+      <button data-t="ice">아이스만</button>
+      <button data-t="hot">따뜻만</button>
+      <button data-t="none">구분없음</button>
+    </div>
+    <button class="big-btn ghost" id="addMenu" style="margin-top:0">➕ 메뉴 추가</button>
+
+    <p class="sec">메뉴 목록</p>
+    <div id="menuEdit"></div>
+    <button class="big-btn ghost" id="resetMenu">기본 메뉴로 되돌리기</button>
+
+    <p class="sec">단톡방 링크용 서버 (Firebase 주소)</p>
+    <input type="text" id="dbInput" placeholder="예: my-cafe-default-rtdb.asia-southeast1.firebasedatabase.app" style="margin-top:8px;font-size:15px">
+    <p class="hint" style="margin-top:6px">처음 한 번만 넣으면 돼요. 만드는 방법은 함께 있는 SETUP.md를 보세요.</p>
+    <button class="big-btn ghost" id="shareApp">👥 다른 총무에게 이 앱 보내기</button>
+    <p class="hint" style="margin-top:6px">받은 사람이 링크를 열면 위 서버 주소가 자동으로 들어가요. AI 키는 함께 보내지 않아요.</p>
+
+    <button class="big-btn" id="setClose">저장하고 닫기</button>
+  </div>
+</div>
+
+<!-- 사진 인식 결과 확인 -->
+<div class="modal" id="scanModal">
+  <div class="sheet">
+    <h2 id="scanTitle">메뉴판 읽는 중…</h2>
+    <div id="scanBody"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // Firebase 주소를 여기에 미리 넣어 두면 설정 없이 바로 링크 기능을 쓸 수 있어요.
+  // 예: 'my-cafe-default-rtdb.asia-southeast1.firebasedatabase.app'
+  const DEFAULT_DB = '';
+
+  const KEY = 'groupCafeOrder.v2';
+  const GUEST_KEY = 'groupCafeOrder.guest';
+  const DEFAULT_MENU = [
+    { id: 'm1', name: '아메리카노', t: 'both' },
+    { id: 'm2', name: '카페라떼', t: 'both' },
+    { id: 'm3', name: '바닐라라떼', t: 'both' },
+    { id: 'm4', name: '카페모카', t: 'both' },
+    { id: 'm5', name: '디카페인 아메리카노', t: 'both' },
+    { id: 'm6', name: '녹차라떼', t: 'both' },
+    { id: 'm7', name: '초코라떼', t: 'both' },
+    { id: 'm8', name: '허브차', t: 'hot' },
+    { id: 'm9', name: '레몬에이드', t: 'ice' },
+    { id: 'm10', name: '과일주스', t: 'ice' },
+    { id: 'm11', name: '물 / 안 마심', t: 'none' },
+  ];
+  const NOTES = ['연하게', '샷 추가', '얼음 적게', '덜 달게', '오트밀크', '사이즈 업', '테이크아웃'];
+  const TEMP_LABEL = { ICE: '아이스', HOT: '따뜻한', '': '' };
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const load = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
+  const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const rid = (n) => { const a = new Uint8Array(n); crypto.getRandomValues(a); return [...a].map((x) => 'abcdefghijkmnpqrstuvwxyz23456789'[x % 32]).join(''); };
+
+  const params = new URLSearchParams(location.search);
+  const GUEST = params.has('r');
+
+  // ---------- 상태 ----------
+  // 총무: menu, orders, room(공유 중인 방 id), db(Firebase 주소), title
+  let S = Object.assign({ menu: DEFAULT_MENU.slice(), orders: [], room: '', db: DEFAULT_DB, title: '' }, GUEST ? {} : load(KEY, {}));
+  if (GUEST) S.menu = [];
+  const saveLocal = () => { if (!GUEST) store(KEY, S); };
+
+  const temps = (m) => (m.t === 'both' ? ['ICE', 'HOT'] : m.t === 'ice' ? ['ICE'] : m.t === 'hot' ? ['HOT'] : ['']);
+  const menuById = (id) => S.menu.find((m) => m.id === id) || { name: '(삭제된 메뉴)' };
+  const keyOf = (o) => o.menuId + '|' + o.temp;
+  const drinkName = (menuId, temp) => (temp ? TEMP_LABEL[temp] + ' ' : '') + menuById(menuId).name;
+  const tagHtml = (temp) => (temp ? `<span class="tag ${temp}">${temp === 'ICE' ? '아이스' : '따뜻'}</span>` : '');
+
+  // ---------- Firebase Realtime Database (REST 방식, 로그인 없음) ----------
+  const dbBase = (host) => {
+    host = (host || '').trim().replace(/\/+$/, '');
+    if (!host) return '';
+    return /^https?:\/\//.test(host) ? host : 'https://' + host;
+  };
+  // Firebase 주소를 짧게: 'abc-default-rtdb.asia-southeast1.firebasedatabase.app' ↔ 'abc~as1'
+  const REGION = { as1: 'asia-southeast1', ew1: 'europe-west1', us1: 'us-central1' };
+  const REGION_CODE = Object.fromEntries(Object.entries(REGION).map(([k, v]) => [v, k]));
+  function compactDb(db) {
+    db = (db || '').replace(/^https:\/\//, '');
+    let m = db.match(/^([a-z0-9-]+)-default-rtdb\.([a-z0-9-]+)\.firebasedatabase\.app$/);
+    if (m) return m[1] + '~' + (REGION_CODE[m[2]] || m[2]);
+    m = db.match(/^([a-z0-9-]+)-default-rtdb\.firebaseio\.com$/);
+    if (m) return m[1] + '~';
+    return db;
+  }
+  function expandDb(d) {
+    if (!d || !d.includes('~')) return d || '';
+    const [proj, reg] = d.split('~');
+    return reg ? `${proj}-default-rtdb.${REGION[reg] || reg}.firebasedatabase.app` : `${proj}-default-rtdb.firebaseio.com`;
+  }
+  const GUEST_DB = params.get('d') ? expandDb(params.get('d')) : params.get('db');
+  const roomUrl = (path) => `${dbBase(GUEST ? GUEST_DB : S.db)}/rooms/${GUEST ? params.get('r') : S.room}${path || ''}.json`;
+  async function api(method, path, body) {
+    const res = await fetch(roomUrl(path), { method, body: body === undefined ? undefined : JSON.stringify(body) });
+    if (!res.ok) throw Object.assign(new Error('서버 응답 ' + res.status), { status: res.status });
+    return res.json();
+  }
+  const isShared = () => GUEST || !!(S.room && S.db);
+  const toArr = (v) => (Array.isArray(v) ? v.filter(Boolean) : Object.values(v || {}));
+
+  let es = null, refetchT = null, lastSync = 0;
+  function applyRoom(data) {
+    if (data === null && GUEST) { setErr('주문이 마감되었거나 링크가 잘못되었어요. 총무님께 새 링크를 받아 주세요.'); return; }
+    data = data || {};
+    if (data.menu) S.menu = toArr(data.menu);
+    if (GUEST && data.title) S.title = data.title;
+    S.orders = Object.entries(data.orders || {})
+      .map(([id, o]) => Object.assign({ name: '', note: '', got: false, ts: 0 }, o, { id }))
+      .sort((a, b) => a.ts - b.ts);
+    lastSync = Date.now();
+    setErr('');
+    saveLocal(); render();
+  }
+  async function refetch() {
+    try { applyRoom(await api('GET')); }
+    catch (e) { if (GUEST) setErr('서버에 연결하지 못했어요. 인터넷을 확인해 주세요.'); else toast('서버에 연결하지 못했어요'); }
+  }
+  function listen() {
+    if (es) { es.close(); es = null; }
+    if (!isShared()) return;
+    try {
+      es = new EventSource(roomUrl());
+      const kick = () => { clearTimeout(refetchT); refetchT = setTimeout(refetch, 120); };
+      es.addEventListener('put', kick);
+      es.addEventListener('patch', kick);
+    } catch (e) {}
+    refetch();
+  }
+  function stopListen() { if (es) { es.close(); es = null; } }
+  // 실시간 연결이 끊겼을 때를 위한 안전장치: 화면으로 돌아오면 새로 불러오기
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && isShared() && Date.now() - lastSync > 3000) refetch(); });
+
+  // ---------- 주문 쓰기 (혼자 / 링크 공유 공통) ----------
+  async function addOrder(o) {
+    o = Object.assign({ name: '', note: '', got: false, ts: Date.now() }, o);
+    if (!isShared()) { o.id = 'l' + Date.now() + rid(3); S.orders.push(o); saveLocal(); render(); return o.id; }
+    const tmp = 'tmp' + rid(4);
+    S.orders.push(Object.assign({ id: tmp }, o)); render();
+    try {
+      const r = await api('POST', '/orders', o);
+      const x = S.orders.find((y) => y.id === tmp); if (x) x.id = r.name;
+      return r.name;
+    } catch (e) {
+      S.orders = S.orders.filter((y) => y.id !== tmp); render();
+      toast('저장하지 못했어요. 다시 눌러 주세요.'); throw e;
+    }
+  }
+  async function patchOrder(id, fields) {
+    const o = S.orders.find((x) => x.id === id); if (!o) return;
+    Object.assign(o, fields); saveLocal(); render();
+    if (isShared()) { try { await api('PATCH', '/orders/' + id, fields); } catch (e) { toast('저장하지 못했어요.'); refetch(); } }
+  }
+  async function removeOrder(id) {
+    S.orders = S.orders.filter((x) => x.id !== id); saveLocal(); render();
+    if (isShared()) { try { await api('DELETE', '/orders/' + id); } catch (e) { toast('지우지 못했어요.'); refetch(); } }
+  }
+  async function pushMenu() {
+    saveLocal(); render();
+    if (isShared() && !GUEST) { try { await api('PUT', '/menu', S.menu); } catch (e) { toast('메뉴를 서버에 올리지 못했어요.'); } }
+  }
+
+  async function startRoom() {
+    if (!S.db) { openSettings(); setTimeout(() => $('dbInput').focus(), 50); toast('먼저 Firebase 주소를 넣어 주세요 (SETUP.md 참고)'); return; }
+    const old = S.orders.slice();
+    S.room = rid(10);
+    try {
+      const orders = {};
+      old.forEach((o) => { const { id, ...rest } = o; orders['a' + rid(8)] = rest; });
+      await api('PUT', '', { title: S.title || '', menu: S.menu, orders, createdAt: Date.now() });
+      saveLocal(); listen(); render();
+      share();
+    } catch (e) {
+      S.room = ''; saveLocal(); render();
+      alert(serverErrorText(e));
+    }
+  }
+  // 서버 연결 실패 원인을 쉬운 말로 알려 줘요
+  function serverErrorText(e) {
+    const where = '\n\n지금 넣은 주소: ' + dbBase(S.db);
+    if (e && (e.status === 401 || e.status === 403))
+      return '보안 규칙이 아직 잠겨 있어요.\nFirebase → Realtime Database → [규칙] 탭에 SETUP.md의 규칙을 붙여넣고 [게시]를 눌러 주세요.' + where;
+    if (e && e.status === 404)
+      return 'Firebase 주소가 맞지 않아요.\nRealtime Database → [데이터] 탭 맨 위 주소를 그대로 복사해서 설정에 다시 넣어 주세요.' + where;
+    if (e && e.status)
+      return `서버가 오류(${e.status})를 보냈어요. 잠시 뒤 다시 해 보세요.` + where;
+    return 'Firebase 주소에 접속하지 못했어요.\n주소에 오타나 빈칸이 없는지, 인터넷이 연결돼 있는지 확인해 주세요.' + where;
+  }
+  const baseUrl = () => { const u = new URL(location.href); u.search = ''; u.hash = ''; return u.toString(); };
+  // 일행에게 보내는 링크 (서버 주소는 짧은 코드로)
+  const guestLink = () => `${baseUrl()}?r=${S.room}&d=${encodeURIComponent(compactDb(S.db))}`;
+  // 지금 보낼 링크: 짧은 링크가 켜져 있고 이미 만들어 뒀으면 그걸 써요
+  const currentLink = () => (S.shortLink && S.short && S.short.room === S.room ? S.short.url : guestLink());
+  // is.gd 단축 주소 (JSONP라서 별도 서버 없이 동작). 실패하면 거절돼요
+  function shorten(url) {
+    return new Promise((ok, no) => {
+      const cb = '__isgd_' + rid(8), s = document.createElement('script');
+      const done = () => { clearTimeout(timer); try { delete window[cb]; } catch (e) { window[cb] = undefined; } s.remove(); };
+      const timer = setTimeout(() => { done(); no(new Error('timeout')); }, 6000);
+      window[cb] = (j) => { done(); j && j.shorturl ? ok(j.shorturl) : no(new Error((j && j.errormessage) || 'shorten')); };
+      s.onerror = () => { done(); no(new Error('load')); };
+      s.src = 'https://is.gd/create.php?format=json&callback=' + cb + '&url=' + encodeURIComponent(url);
+      document.head.appendChild(s);
+    });
+  }
+  async function makeShort() {
+    if (!S.room || (S.short && S.short.room === S.room)) return true;
+    try { S.short = { room: S.room, url: await shorten(guestLink()) }; saveLocal(); render(); return true; }
+    catch (e) { S.shortLink = false; saveLocal(); render(); toast('짧은 링크를 만들지 못해서 원래 링크를 써요'); return false; }
+  }
+  async function shareApp() {
+    saveSettings();
+    if (!S.db) { toast('먼저 Firebase 주소를 넣어 주세요'); $('dbInput').focus(); return; }
+    const url = `${baseUrl()}?s=${encodeURIComponent(compactDb(S.db))}`;
+    const text = '☕ 단체 커피 주문 앱이에요. 이 링크로 열면 단톡방 주문 서버가 자동으로 설정돼요. 열고 나서 홈 화면에 추가해 두세요.';
+    if (navigator.share) {
+      try { await navigator.share({ title: '단체 커피 주문', text, url }); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    copyText(text + '\n' + url, '앱 링크를 복사했어요. 카톡으로 보내 주세요');
+  }
+  async function share() {
+    if (S.shortLink) await makeShort();
+    const url = currentLink();
+    const text = `☕ ${S.title || '음료 주문'} — 링크 열고 마실 음료를 눌러 주세요!`;
+    if (navigator.share) {
+      try { await navigator.share({ title: S.title || '단체 음료 주문', text, url }); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    copyText(text + '\n' + url, '링크를 복사했어요. 단톡방에 붙여넣기 하세요');
+  }
+
+  // ---------- 그리기 ----------
+  function groups() {
+    const order = [];
+    S.menu.forEach((m) => temps(m).forEach((t) => order.push(m.id + '|' + t)));
+    const map = new Map();
+    S.orders.forEach((o) => { const k = keyOf(o); if (!map.has(k)) map.set(k, []); map.get(k).push(o); });
+    const rank = (k) => { const i = order.indexOf(k); return i < 0 ? 999 : i; };
+    return [...map.keys()].sort((a, b) => rank(a) - rank(b)).map((k) => {
+      const [menuId, temp] = k.split('|');
+      return { key: k, menuId, temp, items: map.get(k) };
+    });
+  }
+  // 메뉴에 가격이 있으면 예상 금액을 알려 줘요
+  function priceLine() {
+    let sum = 0, unknown = 0;
+    S.orders.forEach((o) => { const p = +menuById(o.menuId).price || 0; p ? (sum += p) : unknown++; });
+    if (!sum) return '';
+    return `예상 금액 ${sum.toLocaleString('ko-KR')}원${unknown ? ` (가격 모르는 ${unknown}잔 빼고)` : ''}`;
+  }
+  function summarizeNotes(notes) {
+    const c = {};
+    notes.forEach((n) => n.split(', ').forEach((x) => { if (x) c[x] = (c[x] || 0) + 1; }));
+    return Object.entries(c).map(([n, k]) => `${n} ${k}`).join(', ');
+  }
+  function gridHtml(withCount) {
+    const count = {};
+    S.orders.forEach((o) => { count[keyOf(o)] = (count[keyOf(o)] || 0) + 1; });
+    return S.menu.map((m) => {
+      const btns = temps(m).map((t) => {
+        const n = count[m.id + '|' + t] || 0;
+        const cls = t === 'ICE' ? 'ice' : t === 'HOT' ? 'hot' : 'one';
+        const lbl = t === 'ICE' ? '🧊<br>아이스' : t === 'HOT' ? '☕<br>따뜻' : withCount ? '+1' : '✔<br>선택';
+        return `<button class="tap ${cls}" data-add="${m.id}|${t}"><span>${lbl}</span>${withCount ? `<span class="n ${n ? '' : 'zero'}">${n}</span>` : ''}</button>`;
+      }).join('');
+      return `<div class="drink"><div class="nm">${esc(m.name)}</div><div class="btns">${btns}</div></div>`;
+    }).join('');
+  }
+
+  function render() {
+    $('title').textContent = '☕ ' + (S.title || '단체 주문');
+    document.title = S.title ? S.title + ' 음료 주문' : '단체 커피 주문';
+    if (GUEST) return renderGuest();
+    $('total').textContent = S.orders.length;
+
+    const guestCount = new Set(S.orders.filter((o) => o.by === 'guest').map((o) => o.name)).size;
+    $('shareCard').innerHTML = isShared()
+      ? `<h2>📲 단톡방 링크로 받는 중</h2>
+         <div class="live">● 실시간 · 링크로 ${guestCount}명 주문</div>
+         <label class="toggle"><input type="checkbox" id="shortToggle" ${S.shortLink ? 'checked' : ''}><span>짧은 링크로 만들기<small>is.gd 단축 주소 서비스를 써요</small></span></label>
+         <div class="link-box" id="linkBox">${esc(currentLink())}</div>
+         <div class="two"><button class="big-btn" id="shareBtn">링크 다시 보내기</button><button class="big-btn ghost" id="qrBtn">QR 보여주기</button></div>
+         <button class="big-btn ghost" id="stopRoom" style="padding:10px;font-size:15px">링크 주문 마감하기</button>`
+      : `<h2>📲 각자 폰으로 고르게 하기</h2>
+         <p class="hint" style="margin:0">단톡방에 링크를 보내면 각자 음료를 누르고 이름을 남겨요. 로그인은 필요 없어요.</p>
+         <button class="big-btn" id="startRoom">단톡방에 링크 보내기</button>`;
+
+    $('grid').innerHTML = gridHtml(true);
+
+    const gs = groups();
+    $('orderList').innerHTML = gs.length
+      ? `<div class="list">${gs.map((g) => {
+          const notes = g.items.filter((o) => o.note).map((o) => o.note);
+          const noteTxt = notes.length ? `<small>요청: ${esc(summarizeNotes(notes))}</small>` : '';
+          return `<div class="row"><div class="lbl">${tagHtml(g.temp)}${esc(menuById(g.menuId).name)}${noteTxt}</div>
+            <button class="pm" data-minus="${g.key}">−</button><span class="cnt">${g.items.length}</span><button class="pm" data-plus="${g.key}">+</button></div>`;
+        }).join('')}</div>`
+      : `<div class="empty">아직 모은 음료가 없어요.<br>① 모으기에서 눌러 주세요.</div>`;
+    if (gs.length && priceLine()) $('orderList').innerHTML += `<p class="hint" style="margin:10px 4px 0;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">${priceLine()}</p>`;
+
+    const total = S.orders.length, got = S.orders.filter((o) => o.got).length;
+    $('giveHead').innerHTML = total
+      ? `<div style="font-weight:800;font-size:19px">${total}잔 중 <span style="color:var(--ok)">${got}잔</span> 전달 완료</div>
+         <div class="progress"><i style="width:${(got / total) * 100}%"></i></div>`
+      : '';
+    $('giveList').innerHTML = gs.length
+      ? gs.map((g) => {
+          const done = g.items.every((o) => o.got);
+          const cups = g.items.map((o, i) => `<button class="cup ${o.got ? 'got' : ''}" data-got="${o.id}">${o.name ? esc(o.name) : `${i + 1}번째 잔`}${o.note ? `<span class="note">${esc(o.note)}</span>` : ''}</button>`).join('');
+          return `<div class="group ${done ? 'done' : ''}"><h3><span>${tagHtml(g.temp)}${esc(menuById(g.menuId).name)} ${g.items.length}잔</span>
+            ${done ? '<span style="color:var(--ok);font-size:15px">✔ 완료</span>' : `<button class="call" data-call="${g.key}">📣 부르기</button>`}</h3><div class="cups">${cups}</div></div>`;
+        }).join('')
+      : `<div class="empty">주문한 음료가 없어요.</div>`;
+
+    $('menuEdit').innerHTML = S.menu.map((m, i) => `<div class="menu-row"><span>${esc(m.name)} <small style="color:var(--sub);font-weight:400">${{ both: '아이스/따뜻', ice: '아이스', hot: '따뜻', none: '' }[m.t]}</small></span>
+      <button data-up="${i}" ${i ? '' : 'disabled'}>▲</button><button data-del="${m.id}" style="color:var(--danger)">삭제</button></div>`).join('');
+  }
+
+  // ---------- 참여자 화면 ----------
+  let G = load(GUEST_KEY, { name: '', mine: {} });   // mine: { 방id: [주문id, ...] }
+  const myIds = () => (G.mine[params.get('r')] || []);
+  function renderGuest() {
+    const mine = S.orders.filter((o) => myIds().includes(o.id));
+    $('guestGrid').innerHTML = gridHtml(false);
+    $('guestHint').innerHTML = mine.length
+      ? '한 잔 더 필요하거나 다른 분 것을 대신 주문하려면 아래에서 또 누르세요.'
+      : '마실 음료를 <b>한 번 누르고</b>, 이름만 적으면 끝이에요.';
+    $('guestMine').innerHTML = mine.length
+      ? `<div class="done-box"><div class="big">✅</div><h2>주문이 들어갔어요!</h2><p class="hint">음료가 나오면 이름을 불러 드릴게요.</p></div>
+         <div class="list mine">${mine.map((o) => `<div class="row"><div class="lbl">${tagHtml(o.temp)}${esc(menuById(o.menuId).name)}
+            <small>${esc(o.name || '')}${o.note ? ' · ' + esc(o.note) : ''}</small></div>
+            ${o.got ? '<span class="got-badge">받음 ✔</span>' : `<button data-cancel="${o.id}">취소</button>`}</div>`).join('')}</div>`
+      : '';
+  }
+  function setErr(msg) { if (GUEST) $('guestErr').innerHTML = msg ? `<div class="err">${esc(msg)}</div>` : ''; }
+
+  // ---------- 이름 입력 시트 ----------
+  let sheet = null; // { mode: 'edit' | 'guest', id?, key }
+  function openSheet(opts) {
+    sheet = opts;
+    const [menuId, temp] = opts.key.split('|');
+    const o = opts.id ? S.orders.find((x) => x.id === opts.id) : null;
+    const guest = opts.mode === 'guest';
+    $('nameTitle').textContent = guest ? `${drinkName(menuId, temp)} 주문할게요` : `${drinkName(menuId, temp)} — 누구 음료인가요?`;
+    $('nameInput').value = o ? o.name : guest ? G.name || '' : '';
+    $('nameInput').placeholder = guest ? '내 이름 (꼭 적어 주세요)' : '이름 (예: 김집사)';
+    $('nameInput').style.borderColor = '';
+    $('nameOk').textContent = guest ? '주문하기' : '저장';
+    renderNotes(o ? o.note : '');
+    $('nameModal').classList.add('on');
+    if (!$('nameInput').value) setTimeout(() => $('nameInput').focus(), 50);
+  }
+  function renderNotes(cur) {
+    const on = (cur || '').split(', ').filter(Boolean);
+    $('noteQuick').innerHTML = NOTES.map((n) => `<button data-note="${n}" class="${on.includes(n) ? 'on' : ''}">${n}</button>`).join('');
+    $('noteQuick').dataset.cur = on.join(', ');
+  }
+  async function sheetOk() {
+    const name = $('nameInput').value.trim();
+    const note = $('noteQuick').dataset.cur || '';
+    if (sheet.mode === 'guest') {
+      if (!name) { $('nameInput').focus(); $('nameInput').style.borderColor = 'var(--danger)'; return; }
+      $('nameOk').disabled = true;
+      const [menuId, temp] = sheet.key.split('|');
+      try {
+        const id = await addOrder({ menuId, temp, name, note, by: 'guest' });
+        G.name = name;
+        const r = params.get('r'); G.mine[r] = (G.mine[r] || []).concat(id); store(GUEST_KEY, G);
+        $('nameModal').classList.remove('on'); render(); window.scrollTo(0, 0);
+      } catch (e) {}
+      $('nameOk').disabled = false;
+      return;
+    }
+    $('nameModal').classList.remove('on');
+    patchOrder(sheet.id, { name, note });
+  }
+
+  // ---------- 총무 동작 ----------
+  let lastId = null, snackTimer = null;
+  async function hostAdd(key) {
+    const [menuId, temp] = key.split('|');
+    if (navigator.vibrate) { try { navigator.vibrate(25); } catch (e) {} }
+    showSnack(`${drinkName(menuId, temp)} +1`, true);
+    try { lastId = await addOrder({ menuId, temp, by: 'host' }); } catch (e) {}
+  }
+  function showSnack(msg, withActions) {
+    $('snackName').style.display = withActions ? '' : 'none';
+    $('snackUndo').style.display = withActions ? '' : 'none';
+    $('snackMsg').textContent = msg;
+    $('snack').classList.add('on');
+    clearTimeout(snackTimer);
+    snackTimer = setTimeout(() => $('snack').classList.remove('on'), 4000);
+  }
+  const toast = (msg) => showSnack(msg, false);
+  function removeLastOf(key) {
+    for (let i = S.orders.length - 1; i >= 0; i--) if (keyOf(S.orders[i]) === key) return removeOrder(S.orders[i].id);
+  }
+  function saveSettings() {
+    setAiKey($('aiKeyInput').value.trim());
+    const title = $('titleInput').value.trim();
+    const db = $('dbInput').value.trim().replace(/\s+/g, '').replace(/^https:\/\//, '').replace(/^([^/]+\.(?:firebaseio\.com|firebasedatabase\.app))\/.*$/, '$1').replace(/\/+$/, '');
+    const titleChanged = title !== S.title;
+    if (db !== S.db && S.room) { S.room = ''; stopListen(); }
+    S.title = title; S.db = db; saveLocal(); render();
+    if (titleChanged && isShared()) api('PUT', '/title', title).catch(() => {});
+  }
+  function openSettings() {
+    $('titleInput').value = S.title; $('dbInput').value = S.db; $('aiKeyInput').value = getAiKey();
+    $('setModal').classList.add('on');
+  }
+
+  function showOrder() {
+    const gs = groups();
+    if (!gs.length) return;
+    $('showBody').innerHTML = `<div style="font-size:22px;font-weight:700;color:#666;margin-bottom:6px">주문할게요 🙏</div>` +
+      gs.map((g) => {
+        const notes = g.items.filter((o) => o.note).map((o) => o.note);
+        return `<div class="line"><span>${esc(drinkName(g.menuId, g.temp))}${notes.length ? `<br><small style="font-size:.55em;color:#555">(${esc(summarizeNotes(notes))})</small>` : ''}</span><span>${g.items.length}잔</span></div>`;
+      }).join('') + `<div class="sum">총 ${S.orders.length}잔</div>` + (priceLine() ? `<div style="text-align:right;font-size:20px;color:#555;margin-top:4px">${priceLine()}</div>` : '');
+    $('showFoot').innerHTML = `<button id="showClose">닫기</button>`;
+    $('show').classList.add('on'); keepAwake();
+  }
+  function callOut(key) {
+    const g = groups().find((x) => x.key === key);
+    if (!g) return;
+    const left = g.items.filter((o) => !o.got);
+    const names = left.map((o) => o.name).filter(Boolean);
+    const unnamed = left.length - names.length;
+    $('showBody').innerHTML = `<div class="what">${esc(drinkName(g.menuId, g.temp))}</div>
+      <div class="who">${esc(names.join(', '))}${unnamed ? `${names.length ? '<br>+ ' : ''}${unnamed}분` : ''}<br><span style="font-size:.6em;color:#666">받아가세요! 🙋</span></div>`;
+    $('showFoot').innerHTML = `<button class="alt" id="showClose">닫기</button><button data-allgot="${key}">✔ 다 드렸어요</button>`;
+    $('show').classList.add('on'); keepAwake();
+  }
+  function showQr() {
+    const url = currentLink();
+    let svg = '';
+    try { const q = qrcode(0, 'M'); q.addData(url); q.make(); svg = q.createSvgTag({ cellSize: 8, margin: 2, scalable: true }); }
+    catch (e) { svg = `<p style="font-size:18px;word-break:break-all">${esc(url)}</p>`; }
+    $('showBody').innerHTML = `<div class="what" style="margin-top:4vh;font-size:clamp(28px,8vw,48px)">폰 카메라로 찍어 주세요 📷</div><div class="qr">${svg}</div>`;
+    $('showFoot').innerHTML = `<button id="showClose">닫기</button>`;
+    $('show').classList.add('on'); keepAwake();
+  }
+  let wake = null;
+  async function keepAwake() {
+    try { if ('wakeLock' in navigator && !wake) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } } catch (e) {}
+  }
+  async function copyText(txt, okMsg) {
+    try { await navigator.clipboard.writeText(txt); toast(okMsg); }
+    catch (e) {
+      const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy') ? toast(okMsg) : prompt('아래 내용을 복사하세요', txt); } catch (e2) { prompt('아래 내용을 복사하세요', txt); }
+      ta.remove();
+    }
+  }
+  function orderText() {
+    return `☕ ${S.title || '단체 주문'} (총 ${S.orders.length}잔)\n` + groups().map((g) => {
+      const who = g.items.map((o) => o.name).filter(Boolean);
+      return `• ${drinkName(g.menuId, g.temp)} ${g.items.length}잔${who.length ? ` (${who.join(', ')})` : ''}`;
+    }).join('\n');
+  }
+
+  // ---------- 메뉴판 사진 읽기 ----------
+  // 1순위: Gemini AI (설정에 키가 있을 때) — 사진을 Google에 보내 메뉴만 골라 받아요.
+  // 2순위: 폰 안에서 글자 인식 — 사진을 어디에도 보내지 않아요.
+  const AI_KEY = 'groupCafeOrder.aiKey';
+  const AI_MODELS = ['gemini-flash-latest', 'gemini-2.5-flash'];
+  const getAiKey = () => { try { return localStorage.getItem(AI_KEY) || ''; } catch (e) { return ''; } };
+  const setAiKey = (v) => { try { v ? localStorage.setItem(AI_KEY, v) : localStorage.removeItem(AI_KEY); } catch (e) {} };
+
+  const DRINK_WORDS = /커피|아메리카노|라떼|라테|카푸치노|모카|마키아또|마끼아또|에스프레소|콜드브루|브루|아인슈페너|플랫화이트|비엔나|바닐라|카라멜|티$|차$|티\s|밀크티|아이스티|에이드|주스|쥬스|스무디|프라페|프라푸치노|쉐이크|셰이크|초코|녹차|말차|요거트|요구르트|레모네이드|우유|디카페인|캐모마일|페퍼민트|얼그레이|루이보스|히비스커스|유자|자몽|레몬|청귤|생강|대추|쌍화|오미자|매실|복숭아|딸기|망고|블루베리|아이스크림|빙수|라씨|토닉|소다/;
+  const SKIP_WORDS = /^(메뉴|커피|논커피|음료|음료류|티|차|에이드|디저트|베이커리|시그니처|사이즈|가격|추가|옵션|샷|샷추가|추천|신메뉴|선택|기본|변경|사이드|아이스크림|스무디|프라페|주스|라떼|블렌드|원두|싱글오리진|핸드드립|포장|매장|할인|이벤트|영업시간|휴무)$/;
+
+  function guessTemp(name) {
+    if (/only\s*hot|hot\s*only|핫\s*전용|따뜻한\s*음료만/i.test(name)) return 'hot';
+    if (/only\s*ice|ice\s*only|아이스\s*전용/i.test(name)) return 'ice';
+    if (/아이스크림/.test(name) && !/라떼|라테|커피|쉐이크|셰이크/.test(name)) return 'none';
+    if (/^아이스|아이스티|ICE|iced/i.test(name)) return 'ice';
+    if (/에이드|주스|쥬스|스무디|프라페|프라푸치노|쉐이크|셰이크|빙수|콜드브루|플로트|버블티|요거트|요구르트|라씨|토닉|소다/.test(name)) return 'ice';
+    if (/^(핫|뜨거운)\s|\bHOT\b/i.test(name)) return 'hot';
+    if (/생수|케이크|쿠키|베이글|샌드|마카롱|크로플|와플|스콘|휘낭시에|마들렌|빵|토스트|소프트|뷰소프트/.test(name)) return 'none';
+    return 'both';
+  }
+  // "6.5" → 6500, "65" → 6500 (천 원 단위 표기일 때), "6,500" → 6500
+  function readPrice(s, thousandsStyle) {
+    let m = s.match(/(\d{1,2})\s*[.,·:]\s*(\d)\s*(?:천\s*원?|k)?\s*$/i);
+    if (m) return (+m[1] * 10 + +m[2]) * 100;
+    m = s.match(/(\d{1,3})\s*[,.]?\s*(\d{3})\s*원?\s*$/);
+    if (m) { const v = +(m[1] + m[2]); if (v >= 500 && v <= 50000) return v; }
+    m = s.match(/(?:^|\s|[|ㅣ])([1-9]\d)\s*$/);
+    if (m && thousandsStyle) return +m[1] * 100;
+    m = s.match(/(?:^|\s)([1-9]\d?)\s*(?:천\s*원?|k)\s*$/i);
+    if (m) return +m[1] * 1000;
+    return 0;
+  }
+  // 한 줄에서 메뉴 이름(한글 부분)만 남기기
+  function cleanName(s) {
+    return s
+      .replace(/only\s*hot|hot\s*only|only\s*ice|ice\s*only/gi, ' ')
+      .replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')                      // (선택), (기본) 같은 괄호
+      .replace(/[^가-힣\s]/g, ' ')                         // 한글 말고 모두 지우기 (영어 이름, 숫자, 기호)
+      .replace(/\s+/g, ' ').trim();
+  }
+  function glueSyllables(s) {
+    const tok = s.split(' ').filter(Boolean), out = [];
+    for (let i = 0; i < tok.length; i++) {
+      if (tok[i].length === 1 && i + 1 < tok.length && (tok[i + 1].length === 1 || (i > 0 && tok[i - 1].length === 1) || out.length)) tok[i + 1] = tok[i] + tok[i + 1];
+      else out.push(tok[i]);
+    }
+    // 끝에 남은 한 글자 토막(얼룩이 글자로 읽힌 것)은 버려요. 단, '차'·'티'는 메뉴 이름일 수 있어 남겨요
+    if (out.length > 1 && out[out.length - 1].length === 1 && !/[차티]/.test(out[out.length - 1])) out.pop();
+    return out.join(' ');
+  }
+  function finalizeItems(items) {
+    const seen = new Set(), out = [];
+    for (const it of items) {
+      const name = glueSyllables((it.name || '').replace(/\s+/g, ' ').trim());
+      const k = name.replace(/\s/g, '');
+      if (k.length < 2 || k.length > 16 || seen.has(k) || SKIP_WORDS.test(k)) continue;
+      seen.add(k);
+      out.push({ name, t: it.t || guessTemp(name), price: it.price || 0, checked: it.checked !== false });
+    }
+    return out.slice(0, 80);
+  }
+
+  // ---- Gemini AI ----
+  async function blobToB64(canvas) {
+    const blob = await new Promise((ok) => canvas.toBlob(ok, 'image/jpeg', 0.85));
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    let s = ''; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  async function aiRead(canvases) {
+    const key = getAiKey();
+    const prompt = `카페 메뉴판 사진입니다. 손님이 주문할 수 있는 메뉴만 골라 JSON 배열로 답하세요.
+규칙:
+- name: 한글 메뉴 이름만 (영어 이름, 가격, 설명 제외). 메뉴판에 적힌 그대로, 맞춤법만 바로잡기.
+- t: 온도 선택. 'Only Hot', 'HOT ONLY' 등 따뜻하게만 → "hot", 아이스 전용이나 에이드·스무디·주스·아이스티·프라페 → "ice", 아이스크림·디저트·빵 → "none", 그 외 음료 → "both".
+- price: 원 단위 정수. "6.5"처럼 천 원 단위로 적혀 있으면 6500. 메뉴 옆에 가격이 없고 분류 제목 옆에 가격이 있으면 그 가격을 쓰기. 모르면 0.
+- 제외: 분류 제목(Coffee, Tea 등), 메뉴 설명 문구, 원두/블렌드 소개, 샷 추가·디카페인·우유 변경 같은 옵션, 가게 이름, 주소, 전화번호, 영업시간, 이벤트 문구.
+- 같은 메뉴는 한 번만.`;
+    const parts = [];
+    for (const c of canvases) parts.push({ inline_data: { mime_type: 'image/jpeg', data: await blobToB64(c) } });
+    parts.push({ text: prompt });
+    const body = JSON.stringify({
+      contents: [{ role: 'user', parts }],
+      generationConfig: {
+        temperature: 0,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: { name: { type: 'STRING' }, t: { type: 'STRING', enum: ['both', 'ice', 'hot', 'none'] }, price: { type: 'INTEGER' } },
+            required: ['name', 't'],
+          },
+        },
+      },
+    });
+    let lastErr = null;
+    for (const model of AI_MODELS) {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key }, body,
+      });
+      if (res.status === 404) { lastErr = new Error('model'); continue; }   // 모델 이름이 바뀌었으면 다음 후보로
+      if (res.status === 400 || res.status === 401 || res.status === 403) throw Object.assign(new Error('key'), { code: 'key' });
+      if (res.status === 429) throw Object.assign(new Error('quota'), { code: 'quota' });
+      if (!res.ok) throw new Error('ai ' + res.status);
+      const j = await res.json();
+      const text = (((j.candidates || [])[0] || {}).content || {}).parts?.map((p) => p.text || '').join('') || '[]';
+      const arr = JSON.parse(text);
+      return finalizeItems(arr.map((x) => ({ name: cleanName(String(x.name || '')), t: ['both', 'ice', 'hot', 'none'].includes(x.t) ? x.t : '', price: +x.price || 0 })));
+    }
+    throw lastErr || new Error('ai');
+  }
+
+  // ---- 폰 안에서 글자 인식 ----
+  let ocrWorker = null, korWorker = null;
+  function loadScript(src) {
+    return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('load')); document.head.appendChild(s); });
+  }
+  async function toCanvas(file, maxSide) {
+    const img = await createImageBitmap(file);
+    const k = Math.min(maxSide / Math.max(img.width, img.height), 3);
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  }
+  // 흐린 회색 글씨(영어 이름, 설명)와 테두리 선을 지우고, 진한 글씨만 검정으로 남겨요
+  function binarize(src) {
+    const W = src.width, H = src.height;
+    const d = src.getContext('2d').getImageData(0, 0, W, H).data;
+    const lum = new Uint8Array(W * H);
+    const hist = new Uint32Array(256);
+    for (let i = 0, p = 0; p < W * H; i += 4, p++) { const v = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 | 0; lum[p] = v; hist[v]++; }
+    // 가장 흔한 밝기 = 바탕색. 바탕이 어두우면(칠판형) 뒤집어요
+    let bg = 0; for (let v = 1; v < 256; v++) if (hist[v] > hist[bg]) bg = v;
+    if (bg < 110) { for (let p = 0; p < lum.length; p++) lum[p] = 255 - lum[p]; hist.reverse(); bg = 255 - bg; }
+    // 가장 진한 글씨 밝기(진한 쪽 3% 지점)와 바탕의 중간보다 진한 것만 글씨로
+    const total = W * H; let acc = 0, dark = 0;
+    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= total * 0.03) { dark = v; break; } }
+    const th = dark + (bg - dark) * 0.45;
+    const ink = new Uint8Array(W * H);
+    for (let p = 0; p < lum.length; p++) ink[p] = lum[p] < th ? 1 : 0;
+    // 긴 세로선·가로선(표 테두리, 밑줄) 지우기
+    const vMax = H * 0.12, hMax = W * 0.2;
+    for (let x = 0; x < W; x++) {
+      let run = 0;
+      for (let y = 0; y <= H; y++) {
+        if (y < H && ink[y * W + x]) { run++; continue; }
+        if (run > vMax) for (let k = y - run; k < y; k++) ink[k * W + x] = 0;
+        run = 0;
+      }
+    }
+    for (let y = 0; y < H; y++) {
+      let run = 0;
+      for (let x = 0; x <= W; x++) {
+        if (x < W && ink[y * W + x]) { run++; continue; }
+        if (run > hMax) for (let k = x - run; k < x; k++) ink[y * W + k] = 0;
+        run = 0;
+      }
+    }
+    return { W, H, ink, lum, th };
+  }
+  // 세로로 빈 공간을 찾아 단(column)을 나눠요
+  function findColumns({ W, H, ink }) {
+    const col = new Uint32Array(W);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) col[x] += ink[y * W + x];
+    // 폭 minGap인 창 안의 글씨가 아주 적으면(괄호·점 정도) 빈 공간으로 봐요
+    const minGap = Math.max(12, Math.round(W * 0.022)), minWidth = W * 0.12, sparse = H * minGap * 0.004;
+    const isGap = new Uint8Array(W);
+    let sum = 0;
+    for (let x = 0; x < W; x++) {
+      sum += col[x]; if (x >= minGap) sum -= col[x - minGap];
+      if (x >= minGap - 1 && sum <= sparse) for (let k = x - minGap + 1; k <= x; k++) isGap[k] = 1;
+    }
+    const segs = []; let start = -1;
+    for (let x = 0; x <= W; x++) {
+      const g = x === W || isGap[x];
+      if (!g && start < 0) start = x;
+      if (g && start >= 0) { segs.push([start, x]); start = -1; }
+    }
+    // 너무 좁은 조각(가격만 있는 열 등)은 왼쪽 단에 붙여요
+    const out = [];
+    for (const s of segs) {
+      if (out.length && (s[1] - s[0] < minWidth || out[out.length - 1][1] - out[out.length - 1][0] < minWidth)) out[out.length - 1][1] = s[1];
+      else out.push(s.slice());
+    }
+    return out.length ? out : [[0, W]];
+  }
+  function cropCanvas({ W, H, ink, lum, th }, x0, x1) {
+    const pad = 16, w = x1 - x0 + pad * 2;
+    const c = document.createElement('canvas'); c.width = w; c.height = H + pad * 2;
+    const g = c.getContext('2d'); const id = g.createImageData(w, H + pad * 2); const o = id.data;
+    o.fill(255);
+    // 진한 글씨는 원래 농도를 살려 부드럽게(인식이 더 잘 돼요), 나머지는 흰색
+    for (let y = 0; y < H; y++) for (let x = x0; x < x1; x++) {
+      const p = y * W + x; if (!ink[p] && !(lum[p] < th * 1.25 && ((x > 0 && ink[p - 1]) || ink[p + 1] || (y > 0 && ink[p - W]) || ink[p + W]))) continue;
+      const v = ink[p] ? Math.max(0, Math.min(255, (lum[p] / th) * 90)) : Math.min(255, 90 + ((lum[p] - th) / (th * 0.25)) * 165);
+      const q = ((y + pad) * w + (x - x0 + pad)) * 4; o[q] = o[q + 1] = o[q + 2] = v;
+    }
+    g.putImageData(id, 0, 0);
+    return c;
+  }
+  async function ocrRead(files, step) {
+    if (!window.Tesseract) await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
+    if (!ocrWorker) {
+      ocrWorker = await Tesseract.createWorker(params.get('ocr') ? params.get('ocr').split('+') : ['kor', 'eng'], 1, {
+        logger: (m) => { if (/load|init/i.test(m.status)) step('글자 인식 도구를 준비하고 있어요…', (m.progress || 0) * 0.2); },
+      });
+      await ocrWorker.setParameters({ tessedit_pageseg_mode: '6', preserve_interword_spaces: '1' });
+    }
+    const lines = [];
+    let done = 0, jobs = [];
+    for (const f of files) {
+      const bin = binarize(await toCanvas(f, 2200));
+      for (const [x0, x1] of findColumns(bin)) jobs.push(cropCanvas(bin, x0, x1));
+    }
+    for (const c of jobs) {
+      step(`글자를 읽고 있어요… (${done + 1}/${jobs.length})`, 0.2 + (done / jobs.length) * 0.8);
+      const { data } = await ocrWorker.recognize(c, {}, { blocks: true });
+      for (const b of data.blocks || []) for (const p of b.paragraphs) for (const l of p.lines) {
+        // 자신 없는 글자(흐린 영어가 남은 점 등)는 빼고 줄을 다시 만들어요
+        const words = (l.words || []).filter((w) => w.confidence >= 40 || /^[\d.,]+$/.test(w.text));
+        // 글자 사이 간격이 좁으면 붙이고, 넓으면 띄어 써요 (한글은 한 글자씩 끊겨 나올 때가 많아요)
+        const lh = l.bbox.y1 - l.bbox.y0;
+        let text = '';
+        words.forEach((w, i) => { const gap = i ? w.bbox.x0 - words[i - 1].bbox.x1 : 0; text += (i && gap > lh * 0.35 ? ' ' : '') + w.text; });
+        lines.push({ text: text.trim(), raw: l.text, h: lh, conf: words.length ? words.reduce((a, w) => a + w.confidence, 0) / words.length : 0, canvas: c, bbox: l.bbox, words: l.words || [] });
+      }
+      lines.push({ text: '', h: 0, conf: 0, br: true });   // 단 사이 구분
+      done++;
+    }
+    // 가격은 있는데 한글 이름이 약한 줄은, 이름 부분만 잘라 '한글 전용'으로 다시 읽어요
+    const weak = lines.filter((l) => !l.br && readPrice(l.text, true));
+    if (weak.length) {
+      step('잘 안 보이는 메뉴를 한 번 더 읽고 있어요…', 0.95);
+      if (!korWorker) { korWorker = await Tesseract.createWorker('kor', 1); await korWorker.setParameters({ tessedit_pageseg_mode: '7' }); }
+      for (const l of weak) {
+        // 이름이 끝나는 곳 = 첫 영어 단어나 가격이 시작하는 곳
+        // 글자 단위로 보면서 영어 단어(Latte, Soft처럼 소문자가 이어짐)가 시작하는 곳, 또는 가격 숫자가 시작하는 곳에서 멈춰요
+        let x1 = l.bbox.x1;
+        const syms = [].concat(...l.words.map((w) => w.symbols || []));
+        for (let i = 0; i < syms.length; i++) {
+          const run = syms.slice(i, i + 3).map((s) => s.text).join('');
+          if (/^[A-Za-z][a-z]{2}$/.test(run) || (/^\d$/.test(syms[i].text) && /^[\d.,]+$/.test(syms.slice(i).map((s) => s.text).join('').trim()))) { x1 = syms[i].bbox.x0 - 2; break; }
+        }
+        // 줄이 가격에서 시작하면(이름을 통째로 놓친 경우) 단의 왼쪽 끝부터 읽어요
+        const firstHangul = syms.find((s) => /[가-힣]/.test(s.text));
+        const x0 = firstHangul ? Math.min(l.bbox.x0, firstHangul.bbox.x0) : 0;
+        const width = x1 - x0 + 12;
+        if (width < l.h * 1.5) continue;
+        const { data } = await korWorker.recognize(l.canvas, { rectangle: { left: Math.max(0, x0 - 6), top: Math.max(0, l.bbox.y0 - 6), width, height: l.h + 12 } });
+        const again = cleanName(data.text);
+        if (again.replace(/\s/g, '').length >= cleanName(l.text).replace(/\s/g, '').length && data.confidence >= 50) l.text = again + ' ' + l.text.replace(/^[^\d]*?(?=[A-Za-z]{3,}|\d)/, '');
+      }
+    }
+    return parseLines(lines);
+  }
+  // 줄 목록 → 메뉴. 가격이 붙은 줄을 중심으로 고르고, 분류 제목 옆 가격(예: Tea 7.0)은 아래 메뉴에 적용해요
+  function parseLines(lines) {
+    const decimalCount = lines.filter((l) => /\d\s*[.,]\s*\d\s*$/.test(l.text) && !/\d{3}\s*$/.test(l.text)).length;
+    const thousandsStyle = decimalCount >= 2;
+    const rows = lines.map((l) => {
+      if (l.br) return l;
+      const option = /\+|추가|변경|선택|사이즈\s*업|size\s*up/i.test(l.text) && !/[가-힣]{2,}\s*[가-힣]*\s*(라떼|티|차|에이드)/.test(cleanName(l.text.split(/\+/)[0]));
+      const price = readPrice(l.text, thousandsStyle);
+      const hangul = cleanName(l.text);
+      const header = !hangul && /^[A-Za-z][A-Za-z\s&-]{1,20}(\s+[\d.,]+)?$/.test(l.text.trim());
+      return Object.assign({}, l, { price, hangul, header, option, temp: /only\s*hot|hot\s*only/i.test(l.text + ' ' + (l.raw || '')) ? 'hot' : /only\s*ice|ice\s*only/i.test(l.text + ' ' + (l.raw || '')) ? 'ice' : '' });
+    });
+    const pricedH = rows.filter((r) => r.price && r.hangul).map((r) => r.h).sort((a, b) => a - b);
+    const medH = pricedH.length ? pricedH[pricedH.length >> 1] : 0;
+    const usePrices = pricedH.length >= 3;
+    const items = [];
+    let sectionPrice = 0;
+    for (const r of rows) {
+      if (r.br) { sectionPrice = 0; continue; }
+      if (r.header) { sectionPrice = r.price; continue; }
+      if (r.option || !r.hangul) continue;
+      if (r.conf < 45) continue;
+      const syll = r.hangul.replace(/\s/g, '').length;
+      if (syll < 2 || syll > 16) continue;
+      if (r.price) { items.push({ name: r.hangul, t: r.temp || guessTemp(r.hangul), price: r.price }); continue; }
+      if (sectionPrice) { if (!medH || r.h >= medH * 0.75) items.push({ name: r.hangul, t: r.temp || guessTemp(r.hangul), price: sectionPrice }); continue; }
+      if (!usePrices) { if (DRINK_WORDS.test(r.hangul) || r.conf >= 80) items.push({ name: r.hangul, t: r.temp || guessTemp(r.hangul), price: 0 }); continue; }
+      // 가격 없는 줄: 글씨가 메뉴만큼 크고 음료 이름 같으면 후보로 (기본은 체크 해제)
+      if ((!medH || r.h >= medH * 0.8) && syll <= 10 && DRINK_WORDS.test(r.hangul)) items.push({ name: r.hangul, t: r.temp || guessTemp(r.hangul), price: 0, checked: false });
+    }
+    return finalizeItems(items);
+  }
+
+  async function scanPhotos(files) {
+    saveSettings(); $('setModal').classList.remove('on');
+    const useAi = !!getAiKey();
+    $('scanTitle').textContent = '메뉴판 읽는 중…';
+    $('scanBody').innerHTML = `<p class="hint" id="scanStep">${useAi ? 'AI가 메뉴판을 읽고 있어요 (5~15초)' : '글자 인식 도구를 준비하고 있어요 (처음 한 번은 10~20초 걸려요)'}</p><div class="bar"><i id="scanBar"></i></div>
+      <button class="big-btn ghost" id="scanCancel">취소</button>`;
+    $('scanModal').classList.add('on');
+    const step = (t, p) => { const s = $('scanStep'), b = $('scanBar'); if (s) s.textContent = t; if (b && p != null) b.style.width = Math.round(p * 100) + '%'; };
+    let items = null, note = '';
+    if (useAi) {
+      step('AI가 메뉴판을 읽고 있어요…', 0.3);
+      try {
+        const canvases = []; for (const f of files) canvases.push(await toCanvas(f, 1600));
+        items = await aiRead(canvases);
+        note = 'AI로 읽었어요.';
+      } catch (e) {
+        note = e.code === 'key' ? 'AI 키가 올바르지 않아 폰 안에서 읽었어요. 설정에서 키를 확인해 주세요.'
+          : e.code === 'quota' ? 'AI 무료 사용량을 넘어서 폰 안에서 읽었어요. 잠시 뒤 다시 해 보세요.'
+          : 'AI에 연결하지 못해 폰 안에서 읽었어요.';
+      }
+    }
+    if (!items) {
+      try { items = await ocrRead(files, step); if (!note) note = '폰 안에서 읽었어요. 설정에 AI 키를 넣으면 더 정확해요.'; }
+      catch (e) {
+        $('scanTitle').textContent = '사진을 읽지 못했어요';
+        $('scanBody').innerHTML = `<p class="hint">인터넷 연결을 확인하고 다시 시도해 주세요. 계속 안 되면 메뉴를 하나씩 추가할 수 있어요.</p><button class="big-btn" id="scanCancel">닫기</button>`;
+        return;
+      }
+    }
+    if (!$('scanModal').classList.contains('on')) return;
+    showScanResult(items, note);
+  }
+  const won = (n) => (n ? n.toLocaleString('ko-KR') + '원' : '');
+  function showScanResult(items, note) {
+    $('scanTitle').textContent = items.length ? `메뉴 ${items.length}개를 찾았어요` : '메뉴를 찾지 못했어요';
+    const opts = (t) => ['both', 'ice', 'hot', 'none'].map((v) => `<option value="${v}" ${v === t ? 'selected' : ''}>${{ both: '아이스+따뜻', ice: '아이스만', hot: '따뜻만', none: '구분없음' }[v]}</option>`).join('');
+    $('scanBody').innerHTML = items.length
+      ? `<p class="hint">${esc(note)} 잘못 읽힌 글자는 고치고, 필요 없는 줄은 체크를 빼 주세요.</p>
+         <div id="scanList">${items.map((it) => `<div class="scan-row" data-price="${it.price || 0}"><input type="checkbox" ${it.checked ? 'checked' : ''} aria-label="넣기"><div class="scan-name"><input type="text" value="${esc(it.name)}">${it.price ? `<small>${won(it.price)}</small>` : ''}</div><select>${opts(it.t)}</select></div>`).join('')}</div>
+         <button class="big-btn" id="scanReplace">이 메뉴로 바꾸기</button>
+         <div class="two"><button class="big-btn ghost" id="scanAppend">기존 메뉴에 더하기</button><button class="big-btn ghost" id="scanCancel">취소</button></div>`
+      : `<p class="hint">${esc(note)} 사진이 흐리거나 기울어지면 잘 안 읽혀요. 메뉴판을 정면에서 가까이, 밝게 다시 찍어 주세요.</p>
+         <button class="big-btn" id="scanAgain">다시 찍기</button><button class="big-btn ghost" id="scanCancel">닫기</button>`;
+  }
+  function applyScan(replace) {
+    const picked = [...document.querySelectorAll('#scanList .scan-row')]
+      .filter((r) => r.querySelector('input[type=checkbox]').checked)
+      .map((r) => ({ id: 'u' + rid(6), name: r.querySelector('input[type=text]').value.trim(), t: r.querySelector('select').value, price: +r.dataset.price || 0 }))
+      .filter((m) => m.name);
+    if (!picked.length) return toast('선택된 메뉴가 없어요');
+    S.menu = replace ? picked : S.menu.concat(picked);
+    pushMenu();
+    $('scanModal').classList.remove('on');
+    toast(`메뉴 ${picked.length}개를 넣었어요`);
+  }
+
+  // ---------- 이벤트 ----------
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    const d = b.dataset;
+    if (d.add) return GUEST ? openSheet({ mode: 'guest', key: d.add }) : hostAdd(d.add);
+    if (d.plus) { const [menuId, temp] = d.plus.split('|'); addOrder({ menuId, temp, by: 'host' }).catch(() => {}); return; }
+    if (d.minus) return removeLastOf(d.minus);
+    if (d.got) { const o = S.orders.find((x) => x.id === d.got); if (o) patchOrder(o.id, { got: !o.got }); return; }
+    if (d.call) return callOut(d.call);
+    if (d.allgot) { S.orders.filter((o) => keyOf(o) === d.allgot && !o.got).forEach((o) => patchOrder(o.id, { got: true })); $('show').classList.remove('on'); return; }
+    if (d.cancel) {
+      if (!confirm('이 주문을 취소할까요?')) return;
+      const r = params.get('r'); G.mine[r] = myIds().filter((x) => x !== d.cancel); store(GUEST_KEY, G);
+      return removeOrder(d.cancel);
+    }
+    if (d.note) {
+      const cur = ($('noteQuick').dataset.cur || '').split(', ').filter(Boolean);
+      const i = cur.indexOf(d.note); i >= 0 ? cur.splice(i, 1) : cur.push(d.note);
+      return renderNotes(cur.join(', '));
+    }
+    if (d.p) {
+      document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
+      document.querySelectorAll('.page').forEach((x) => x.classList.toggle('on', x.id === 'p-' + d.p));
+      $('snack').classList.remove('on');
+      return window.scrollTo(0, 0);
+    }
+    if (d.del) { S.menu = S.menu.filter((m) => m.id !== d.del); return pushMenu(); }
+    if (d.up) { const i = +d.up; [S.menu[i - 1], S.menu[i]] = [S.menu[i], S.menu[i - 1]]; return pushMenu(); }
+    if (d.t) { document.querySelectorAll('#tempSeg button').forEach((x) => x.classList.toggle('on', x === b)); return; }
+    switch (b.id) {
+      case 'snackUndo':
+        if (lastId) { removeOrder(lastId); lastId = null; }
+        $('snack').classList.remove('on'); break;
+      case 'snackName': {
+        $('snack').classList.remove('on');
+        const o = S.orders.find((x) => x.id === lastId);
+        if (o) openSheet({ mode: 'edit', id: o.id, key: keyOf(o) });
+        break;
+      }
+      case 'nameOk': sheetOk(); break;
+      case 'nameCancel': $('nameModal').classList.remove('on'); break;
+      case 'showOrder': showOrder(); break;
+      case 'showClose': $('show').classList.remove('on'); if (wake) { wake.release(); wake = null; } break;
+      case 'copyOrder': if (S.orders.length) copyText(orderText(), '주문 내용을 복사했어요'); break;
+      case 'startRoom': startRoom(); break;
+      case 'shareBtn': share(); break;
+      case 'shareApp': shareApp(); break;
+      case 'qrBtn': showQr(); break;
+      case 'stopRoom':
+        if (confirm('링크 주문을 마감할까요?\n지금까지 들어온 주문은 그대로 남아요.')) {
+          api('DELETE', '').catch(() => {});   // 서버에서 방 지우기 (링크가 더는 열리지 않음)
+          S.room = ''; stopListen(); saveLocal(); render();
+        }
+        break;
+      case 'openSettings': openSettings(); break;
+      case 'setClose': saveSettings(); $('setModal').classList.remove('on'); break;
+      case 'newOrder':
+        if (!S.orders.length || confirm('지금까지 모은 주문을 모두 지울까요?')) {
+          if (isShared()) api('DELETE', '').catch(() => {});
+          S.orders = []; S.room = ''; stopListen(); saveLocal(); render(); $('setModal').classList.remove('on');
+          document.querySelector('nav button[data-p="collect"]').click();
+        }
+        break;
+      case 'addMenu': {
+        const name = $('newMenu').value.trim();
+        if (!name) return $('newMenu').focus();
+        const t = document.querySelector('#tempSeg button.on').dataset.t;
+        S.menu.push({ id: 'u' + rid(6), name, t }); $('newMenu').value = ''; pushMenu();
+        toast(`'${name}' 메뉴를 추가했어요`); break;
+      }
+      case 'resetMenu': if (confirm('기본 메뉴로 되돌릴까요? (모은 주문은 유지돼요)')) { S.menu = DEFAULT_MENU.slice(); pushMenu(); } break;
+      case 'scanMenu': case 'scanAgain': $('scanFile').value = ''; $('scanFile').click(); break;
+      case 'scanCancel': $('scanModal').classList.remove('on'); break;
+      case 'scanReplace': applyScan(true); break;
+      case 'scanAppend': applyScan(false); break;
+    }
+  });
+  document.addEventListener('change', async (e) => {
+    if (e.target.id !== 'shortToggle') return;
+    S.shortLink = e.target.checked; saveLocal();
+    if (S.shortLink) { $('linkBox').textContent = '짧은 링크를 만드는 중…'; if (await makeShort()) toast('짧은 링크로 바꿨어요'); }
+    else render();
+  });
+  $('scanFile').addEventListener('change', (e) => { const fs = [...(e.target.files || [])].slice(0, 4); if (fs.length) scanPhotos(fs); });
+  $('nameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sheetOk(); });
+  $('nameInput').addEventListener('input', () => { $('nameInput').style.borderColor = ''; });
+  $('newMenu').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('addMenu').click(); });
+  document.querySelectorAll('.modal').forEach((m) => m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('on'); }));
+
+  // ---------- 시작 ----------
+  if (!GUEST && params.has('s')) {
+    const d = expandDb(params.get('s'));
+    if (d && d !== S.db) { S.db = d; S.room = ''; saveLocal(); setTimeout(() => toast('단톡방 링크 서버가 설정됐어요'), 300); }
+    try { history.replaceState(null, '', baseUrl()); } catch (e) {}
+  }
+  if (GUEST) {
+    document.body.classList.add('guest');
+    document.querySelectorAll('.page').forEach((x) => x.classList.toggle('on', x.id === 'p-guest'));
+  }
+  render();
+  if (isShared()) listen();
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js" async></script>
+</body>
+</html>
