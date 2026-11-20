@@ -238,7 +238,6 @@
   </div>
   <div style="display:flex;align-items:center;gap:6px;flex:none" id="headRight">
     <span class="total host-only">총 <b id="total">0</b>잔</span>
-    <button class="icon-only host-only" id="shareApp" aria-label="앱 공유하기" title="앱 공유하기"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
     <button class="icon-only host-only" id="openSettings" aria-label="설정" title="설정"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
   </div>
 </header>
@@ -310,6 +309,10 @@
   <div class="sheet">
     <h2>설정</h2>
     <button class="big-btn" id="newOrder">🔄 새 주문 시작 (모두 지우기)</button>
+
+    <p class="sec">이 앱을 다른 총무에게 소개하기</p>
+    <button class="big-btn ghost" id="shareApp" style="margin-top:8px">👥 앱 공유하기</button>
+    <p class="hint" style="margin-top:6px">주문받는 링크가 아니라 <b>이 앱 자체</b>를 보내요. 받은 사람도 자기 모임에서 총무로 쓸 수 있어요. AI 키는 함께 보내지 않아요.</p>
 
     <input type="file" id="scanFile" accept="image/*" multiple hidden>
     <p class="sec">메뉴판 사진을 AI로 더 정확하게 읽기 (선택)</p>
