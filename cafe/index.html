@@ -5,6 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#6b3e26">
 <title>단체 커피 주문</title>
+<meta name="description" content="단톡방 링크를 열고 마실 음료를 한 번 누르면 끝. 로그인 없이 바로 주문돼요.">
+<!-- 홈 화면에 추가했을 때 앱처럼 보이게 -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="커피 주문">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<!-- 카톡 등에 링크를 보낼 때 보이는 미리보기 카드 -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="단체 커피 주문">
+<meta property="og:title" content="☕ 단체 커피 주문">
+<meta property="og:description" content="링크 열고 마실 음료를 한 번 누르면 끝. 로그인 없이 바로 주문돼요.">
+<meta property="og:url" content="https://sm-garden.github.io/pop-up-labs/cafe/">
+<meta property="og:image" content="https://sm-garden.github.io/pop-up-labs/cafe/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="단체 커피 주문 앱 아이콘과 소개 문구">
+<meta property="og:locale" content="ko_KR">
+<meta name="twitter:card" content="summary_large_image">
 <style>
   :root {
     --bg: #faf6f1; --card: #ffffff; --ink: #2b1d14; --sub: #7a6a5e; --line: #e8ddd2;
@@ -1194,6 +1216,11 @@
   }
   render();
   if (isShared()) listen();
+
+  // 홈 화면 앱으로 빨리 열리게 (지원하는 브라우저에서만)
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+  }
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js" async></script>

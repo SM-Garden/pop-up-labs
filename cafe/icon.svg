@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#6b3e26"/>
+  <!-- 김 -->
+  <g fill="none" stroke="#f3dcc4" stroke-width="16" stroke-linecap="round">
+    <path d="M196 132c-14 18 14 30 0 50"/>
+    <path d="M248 120c-14 18 14 30 0 50"/>
+    <path d="M300 132c-14 18 14 30 0 50"/>
+  </g>
+  <!-- 손잡이 -->
+  <path d="M352 234h18a40 40 0 0 1 0 80h-26" fill="none" stroke="#ffffff" stroke-width="22" stroke-linecap="round"/>
+  <!-- 컵 -->
+  <path d="M136 212h232v70a96 96 0 0 1-96 96h-40a96 96 0 0 1-96-96z" fill="#ffffff"/>
+  <!-- 커피 -->
+  <path d="M156 228h192v26H156z" fill="#c8915f"/>
+  <!-- 받침 -->
+  <rect x="112" y="388" width="280" height="20" rx="10" fill="#f3dcc4"/>
+</svg>
