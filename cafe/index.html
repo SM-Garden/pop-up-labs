@@ -314,6 +314,7 @@
     <p class="hint" style="margin-top:6px">처음 한 번만 넣으면 돼요. 만드는 방법은 함께 있는 SETUP.md를 보세요.</p>
     <button class="big-btn ghost" id="shareApp">👥 다른 총무에게 이 앱 보내기</button>
     <p class="hint" style="margin-top:6px">받은 사람이 링크를 열면 위 서버 주소가 자동으로 들어가요. AI 키는 함께 보내지 않아요.</p>
+    <a class="big-btn ghost" href="stats.html" style="text-align:center;text-decoration:none">📊 사용 통계 보기</a>
 
     <button class="big-btn" id="setClose">저장하고 닫기</button>
   </div>
@@ -404,6 +405,20 @@
     return res.json();
   }
   const isShared = () => GUEST || !!(S.room && S.db);
+
+  // ---------- 사용 통계 (이름·주문 내용 없이 날짜별 숫자만 1씩 올려요) ----------
+  const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  function stat(metric) {
+    const db = GUEST ? GUEST_DB : S.db;
+    if (!db) return;
+    try { fetch(`${dbBase(db)}/stats/${today()}/${metric}.json`, { method: 'PUT', body: '{".sv":{"increment":1}}', keepalive: true }).catch(() => {}); } catch (e) {}
+  }
+  // 같은 폰에서 하루(또는 같은 방)에 한 번만 세요
+  function statOnce(metric, key) {
+    const k = 'groupCafeOrder.stat.' + metric, v = key || today();
+    if (load(k, '') === v) return;
+    store(k, v); stat(metric);
+  }
   const toArr = (v) => (Array.isArray(v) ? v.filter(Boolean) : Object.values(v || {}));
 
   let es = null, refetchT = null, lastSync = 0;
@@ -441,6 +456,7 @@
   // ---------- 주문 쓰기 (혼자 / 링크 공유 공통) ----------
   async function addOrder(o) {
     o = Object.assign({ name: '', note: '', got: false, ts: Date.now() }, o);
+    stat(o.by === 'guest' ? 'guestOrders' : 'hostOrders');
     if (!isShared()) { o.id = 'l' + Date.now() + rid(3); S.orders.push(o); saveLocal(); render(); return o.id; }
     const tmp = 'tmp' + rid(4);
     S.orders.push(Object.assign({ id: tmp }, o)); render();
@@ -476,6 +492,7 @@
       old.forEach((o) => { const { id, ...rest } = o; orders['a' + rid(8)] = rest; });
       await api('PUT', '', { title: S.title || '', menu: S.menu, orders, createdAt: Date.now() });
       saveLocal(); listen(); render();
+      stat('rooms');
       share();
     } catch (e) {
       S.room = ''; saveLocal(); render();
@@ -1072,6 +1089,7 @@
       try {
         const canvases = []; for (const f of files) canvases.push(await toCanvas(f, 1600));
         items = await aiRead(canvases);
+        stat('scanAi');
         note = 'AI로 읽었어요.';
       } catch (e) {
         note = e.code === 'key' ? 'AI 키가 올바르지 않아 폰 안에서 읽었어요. 설정에서 키를 확인해 주세요.'
@@ -1080,7 +1098,7 @@
       }
     }
     if (!items) {
-      try { items = await ocrRead(files, step); if (!note) note = '폰 안에서 읽었어요. 설정에 AI 키를 넣으면 더 정확해요.'; }
+      try { items = await ocrRead(files, step); stat('scanLocal'); if (!note) note = '폰 안에서 읽었어요. 설정에 AI 키를 넣으면 더 정확해요.'; }
       catch (e) {
         $('scanTitle').textContent = '사진을 읽지 못했어요';
         $('scanBody').innerHTML = `<p class="hint">인터넷 연결을 확인하고 다시 시도해 주세요. 계속 안 되면 메뉴를 하나씩 추가할 수 있어요.</p><button class="big-btn" id="scanCancel">닫기</button>`;
@@ -1216,6 +1234,7 @@
   }
   render();
   if (isShared()) listen();
+  if (GUEST) statOnce('guestOpens', params.get('r')); else statOnce('hostDevices');
 
   // 홈 화면 앱으로 빨리 열리게 (지원하는 브라우저에서만)
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
