@@ -112,6 +112,17 @@
     transition: transform .06s;
   }
   .tap:active { transform: scale(.94); }
+  #grid .tap { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+  #grid .tap.pressing { transform: scale(.9); filter: brightness(.92); transition: transform .45s, filter .45s; }
+  /* 수량 고치기 (길게 누르기) */
+  .qty { display: flex; align-items: center; justify-content: center; gap: 22px; margin: 6px 0 4px; }
+  .qty button { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--line); background: var(--bg); font-size: 34px; font-weight: 700; line-height: 1; }
+  .qty b { min-width: 70px; text-align: center; font-size: 44px; color: var(--brand); font-variant-numeric: tabular-nums; }
+  .qlist { margin-top: 12px; border-top: 1px solid var(--line); }
+  .qlist .qi { display: flex; align-items: center; gap: 8px; padding: 10px 2px; border-bottom: 1px solid var(--line); }
+  .qlist .qi span { flex: 1; font-size: 17px; font-weight: 700; word-break: keep-all; }
+  .qlist .qi small { display: block; font-size: 13px; font-weight: 400; color: var(--sub); }
+  .qlist .qi button { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); font-size: 14px; color: var(--danger); }
   .tap.ice { background: var(--ice-bg); color: var(--ice); }
   .tap.hot { background: var(--hot-bg); color: var(--hot); }
   .tap.one { background: var(--bg); color: var(--ink); border: 1px solid var(--line); }
@@ -258,7 +269,7 @@
   <section class="page on host-only" id="p-collect">
     <div class="menu-bar" id="menuBar"></div>
     <div class="card share" id="shareCard"></div>
-    <p class="hint">폰이 없거나 어려운 분은 여기서 대신 눌러 주세요. 한 번 누를 때마다 한 잔이 추가돼요.</p>
+    <p class="hint">폰이 없거나 어려운 분은 여기서 대신 눌러 주세요. 한 번 누를 때마다 한 잔이 추가돼요. 잘못 눌렀으면 <b>길게 눌러</b> 수량을 고치세요.</p>
     <div class="grid" id="grid"></div>
   </section>
 
@@ -353,6 +364,15 @@
 
     <button class="big-btn" id="setClose">저장하고 닫기</button>
     <p class="copy">© 2026 Hanbat.Timothy. All rights reserved.</p>
+  </div>
+</div>
+
+<!-- 수량 고치기: 총무 화면에서 음료 버튼을 길게 누르면 -->
+<div class="modal" id="qtyModal">
+  <div class="sheet">
+    <h2 id="qtyTitle">수량 고치기</h2>
+    <div id="qtyBody"></div>
+    <button class="big-btn" id="qtyClose">다 됐어요</button>
   </div>
 </div>
 
@@ -690,6 +710,7 @@
         }).join('')
       : `<div class="empty">주문한 음료가 없어요.</div>`;
 
+    if ($('qtyModal').classList.contains('on')) renderQty();
     $('menuEdit').innerHTML = S.menu.map((m, i) => `<div class="menu-row"><span>${esc(m.name)} <small style="color:var(--sub);font-weight:400">${{ both: '아이스/따뜻', ice: '아이스', hot: '따뜻', none: '' }[m.t]}</small></span>
       <button data-up="${i}" ${i ? '' : 'disabled'}>▲</button><button data-del="${m.id}" style="color:var(--danger)">삭제</button></div>`).join('');
   }
@@ -770,8 +791,25 @@
     snackTimer = setTimeout(() => $('snack').classList.remove('on'), 4000);
   }
   const toast = (msg) => showSnack(msg, false);
+  // 한 잔 빼기: 총무가 대신 누른 것(이름 없는 것 먼저)부터 빼고, 일행이 링크로 주문한 것은 물어보고 빼요
   function removeLastOf(key) {
-    for (let i = S.orders.length - 1; i >= 0; i--) if (keyOf(S.orders[i]) === key) return removeOrder(S.orders[i].id);
+    const list = S.orders.filter((o) => keyOf(o) === key).reverse();
+    const o = list.find((x) => x.by !== 'guest' && !x.name) || list.find((x) => x.by !== 'guest') || list[0];
+    if (!o) return;
+    if (o.by === 'guest' && !confirm(`${o.name || '이름 없는 분'}님이 링크로 주문한 음료예요. 지울까요?`)) return;
+    return removeOrder(o.id);
+  }
+  // 길게 누르면 여는 수량 고치기 창
+  let qtyKey = null;
+  function openQty(key) { qtyKey = key; $('snack').classList.remove('on'); renderQty(); $('qtyModal').classList.add('on'); }
+  function renderQty() {
+    if (!qtyKey) return;
+    const [menuId, temp] = qtyKey.split('|');
+    const items = S.orders.filter((o) => keyOf(o) === qtyKey);
+    $('qtyTitle').textContent = drinkName(menuId, temp);
+    $('qtyBody').innerHTML = `
+      <div class="qty"><button data-qminus="${qtyKey}" aria-label="한 잔 빼기" ${items.length ? '' : 'disabled'}>−</button><b>${items.length}</b><button data-qplus="${qtyKey}" aria-label="한 잔 더하기">+</button></div>
+      ${items.length ? `<div class="qlist">${items.slice().reverse().map((o) => `<div class="qi"><span>${o.name ? esc(o.name) : '이름 없음'}<small>${o.by === 'guest' ? '링크로 주문' : '총무가 누름'}${o.note ? ' · ' + esc(o.note) : ''}</small></span><button data-qdel="${o.id}">빼기</button></div>`).join('')}</div>` : '<p class="hint" style="text-align:center;margin-top:8px">아직 주문이 없어요.</p>'}`;
   }
   const isDefaultMenu = () => S.menu.length === DEFAULT_MENU.length && S.menu.every((m, i) => m.id === DEFAULT_MENU[i].id && m.name === DEFAULT_MENU[i].name && m.t === DEFAULT_MENU[i].t);
   // 머리글에서 모임 이름 바로 고치기
@@ -1228,7 +1266,17 @@
     const b = e.target.closest('button');
     if (!b) return;
     const d = b.dataset;
-    if (d.add) return GUEST ? openSheet({ mode: 'guest', key: d.add }) : hostAdd(d.add);
+    if (d.add) {
+      if (!GUEST && longPressed) { longPressed = false; return; }   // 길게 누른 뒤 손을 뗄 때 생기는 클릭은 무시
+      return GUEST ? openSheet({ mode: 'guest', key: d.add }) : hostAdd(d.add);
+    }
+    if (d.qplus) { const [menuId, temp] = d.qplus.split('|'); addOrder({ menuId, temp, by: 'host' }).catch(() => {}); return; }
+    if (d.qminus) return removeLastOf(d.qminus);
+    if (d.qdel) {
+      const o = S.orders.find((x) => x.id === d.qdel); if (!o) return;
+      if (o.by === 'guest' && !confirm(`${o.name || '이름 없는 분'}님이 링크로 주문한 음료예요. 지울까요?`)) return;
+      return removeOrder(o.id);
+    }
     if (d.plus) { const [menuId, temp] = d.plus.split('|'); addOrder({ menuId, temp, by: 'host' }).catch(() => {}); return; }
     if (d.minus) return removeLastOf(d.minus);
     if (d.got) { const o = S.orders.find((x) => x.id === d.got); if (o) patchOrder(o.id, { got: !o.got }); return; }
@@ -1303,6 +1351,7 @@
       case 'galleryPick': $('pickModal').classList.remove('on'); $('scanFile').value = ''; $('scanFile').click(); break;
       case 'readShots': $('pickModal').classList.remove('on'); if (shots.length) scanPhotos(shots.slice(0, 4)); break;
       case 'pickClose': $('pickModal').classList.remove('on'); break;
+      case 'qtyClose': $('qtyModal').classList.remove('on'); qtyKey = null; break;
       case 'scanCancel': $('scanModal').classList.remove('on'); break;
       case 'scanReplace': applyScan(true); break;
       case 'scanAppend': applyScan(false); break;
@@ -1314,6 +1363,21 @@
     if (S.shortLink) { $('linkBox').textContent = '짧은 링크를 만드는 중…'; if (await makeShort()) toast('짧은 링크로 바꿨어요'); }
     else render();
   });
+  // ① 모으기에서 음료 버튼을 0.5초 길게 누르면 수량 고치기 창
+  let pressTimer = null, pressEl = null, pressXY = null, longPressed = false;
+  const endPress = () => { clearTimeout(pressTimer); pressTimer = null; if (pressEl) pressEl.classList.remove('pressing'); pressEl = null; };
+  $('grid').addEventListener('pointerdown', (e) => {
+    const b = e.target.closest('.tap'); if (!b) return;
+    longPressed = false; pressEl = b; pressXY = [e.clientX, e.clientY]; b.classList.add('pressing');
+    pressTimer = setTimeout(() => {
+      longPressed = true; endPress();
+      if (navigator.vibrate) { try { navigator.vibrate(40); } catch (er) {} }
+      openQty(b.dataset.add);
+    }, 500);
+  });
+  $('grid').addEventListener('pointermove', (e) => { if (pressTimer && pressXY && Math.hypot(e.clientX - pressXY[0], e.clientY - pressXY[1]) > 12) endPress(); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => $('grid').addEventListener(t, (e) => { if (t !== 'pointerleave' || e.target === pressEl) endPress(); }, true));
+  $('grid').addEventListener('contextmenu', (e) => { if (e.target.closest('.tap')) e.preventDefault(); });
   $('camFile').addEventListener('change', (e) => { const f = (e.target.files || [])[0]; if (f) { shots.push(f); renderPicker(); } });
   $('scanFile').addEventListener('change', (e) => { const fs = [...(e.target.files || [])].slice(0, 4); if (fs.length) scanPhotos(fs); });
   $('nameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sheetOk(); });
