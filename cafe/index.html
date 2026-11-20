@@ -1291,7 +1291,17 @@
 
   // 홈 화면 앱으로 빨리 열리게 (지원하는 브라우저에서만)
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
-    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+    // 새 버전이 설치되면 화면을 한 번 새로 열어서 바로 보여 줘요 (처음 설치 때나, 입력 중일 때는 빼고)
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloading) return;
+      if (document.querySelector('.modal.on, .show.on, .title-edit.on')) return;   // 입력·보여주기 중이면 다음에 열 때 바뀌어요
+      reloading = true; location.reload();
+    });
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((r) => r.update()).catch(() => {});
+    });
   }
 })();
 </script>
