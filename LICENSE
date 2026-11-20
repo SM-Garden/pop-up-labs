@@ -1,0 +1,13 @@
+Copyright (c) 2026 Hanbat.Timothy. All rights reserved.
+
+이 저장소의 코드, 문서, 이미지의 저작권은 Hanbat.Timothy에게 있습니다.
+
+- 공개된 웹앱(https://sm-garden.github.io/pop-up-labs/cafe/)은 누구나 무료로 사용할 수 있습니다.
+- 저작권자의 허락 없이 이 저장소의 코드, 문서, 이미지를 복사, 수정, 재배포하거나
+  다른 서비스에 사용할 수 없습니다.
+- 허락이 필요하면 GitHub(https://github.com/SM-Garden/pop-up-labs)로 문의해 주세요.
+
+이 앱이 불러와 쓰는 다른 사람의 라이브러리와 글꼴은 각자의 라이선스를 따릅니다.
+- qrcode-generator (MIT License)
+- tesseract.js 및 한국어·영어 인식 데이터 (Apache License 2.0)
+- Noto Sans KR, Jua, Noto Color Emoji 글꼴 (SIL Open Font License 1.1) — 안내·홍보 이미지에 사용
