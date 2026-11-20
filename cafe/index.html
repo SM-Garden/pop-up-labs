@@ -55,9 +55,10 @@
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     padding: 14px 16px 10px; border-bottom: 1px solid var(--line);
   }
-  header h1 { font-size: 21px; word-break: keep-all; min-width: 0; }
+  header h1 { font-size: 21px; word-break: keep-all; min-width: 0; flex: 1; }
   /* 머리글 모임 이름: 눌러서 바로 고치기 */
   .title-btn { font: inherit; font-weight: 800; text-align: left; display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; padding: 2px 0; border-bottom: 2px dashed var(--line); }
+  .title-btn .tt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .title-btn .ph { color: var(--sub); font-weight: 700; }
   .title-btn .pen { font-size: 15px; opacity: .7; flex: none; }
   .title-edit { display: none; align-items: center; gap: 6px; min-width: 0; flex: 1; }
@@ -74,6 +75,10 @@
   .menu-bar.fresh { border: 2px solid var(--brand); }
   header .total { font-size: 16px; color: var(--sub); white-space: nowrap; }
   header .total b { color: var(--brand); font-size: 22px; }
+  .icon-only { width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .icon-only:active { transform: scale(.94); }
+  header .total { margin-right: 4px; }
+  @media (max-width: 380px) { header .total { font-size: 14px; } header .total b { font-size: 19px; } .icon-only { width: 38px; height: 38px; } }
   .icon-btn { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); font-size: 15px; background: var(--card); white-space: nowrap; }
   main { max-width: 720px; margin: 0 auto; padding: 14px 16px; }
   .hint { color: var(--sub); font-size: 15px; margin-bottom: 12px; word-break: keep-all; }
@@ -231,9 +236,10 @@
     <input type="text" id="titleEditInput" placeholder="예: 청년부 카페 모임" maxlength="30" autocomplete="off" enterkeyhint="done" aria-label="모임 이름">
     <button id="titleSave">저장</button>
   </div>
-  <div style="display:flex;align-items:center;gap:10px" id="headRight">
+  <div style="display:flex;align-items:center;gap:6px;flex:none" id="headRight">
     <span class="total host-only">총 <b id="total">0</b>잔</span>
-    <button class="icon-btn host-only" id="openSettings">⚙︎ 설정</button>
+    <button class="icon-only host-only" id="shareApp" aria-label="앱 공유하기" title="앱 공유하기"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
+    <button class="icon-only host-only" id="openSettings" aria-label="설정" title="설정"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
   </div>
 </header>
 
@@ -327,8 +333,6 @@
     <p class="sec">단톡방 링크용 서버 (Firebase 주소)</p>
     <input type="text" id="dbInput" placeholder="예: my-cafe-default-rtdb.asia-southeast1.firebasedatabase.app" style="margin-top:8px;font-size:15px">
     <p class="hint" style="margin-top:6px">처음 한 번만 넣으면 돼요. 만드는 방법은 함께 있는 SETUP.md를 보세요.</p>
-    <button class="big-btn ghost" id="shareApp">👥 다른 총무에게 이 앱 보내기</button>
-    <p class="hint" style="margin-top:6px">받은 사람이 링크를 열면 위 서버 주소가 자동으로 들어가요. AI 키는 함께 보내지 않아요.</p>
     <a class="big-btn ghost" href="stats.html" style="text-align:center;text-decoration:none">📊 사용 통계 보기</a>
 
     <button class="big-btn" id="setClose">저장하고 닫기</button>
@@ -547,11 +551,12 @@
     try { S.short = { room: S.room, url: await shorten(guestLink()) }; saveLocal(); render(); return true; }
     catch (e) { S.shortLink = false; saveLocal(); render(); toast('짧은 링크를 만들지 못해서 원래 링크를 써요'); return false; }
   }
+  // 머리글 공유 버튼: 다른 사람에게 앱 자체를 보내요 (AI 키는 보내지 않아요)
   async function shareApp() {
-    saveSettings();
-    if (!S.db) { toast('먼저 Firebase 주소를 넣어 주세요'); $('dbInput').focus(); return; }
-    const url = `${baseUrl()}?s=${encodeURIComponent(compactDb(S.db))}`;
-    const text = '☕ 단체 커피 주문 앱이에요. 이 링크로 열면 단톡방 주문 서버가 자동으로 설정돼요. 열고 나서 홈 화면에 추가해 두세요.';
+    if ($('setModal').classList.contains('on')) saveSettings();
+    // 기본 서버를 쓰면 주소만, 다른 서버를 쓰면 받은 사람에게도 그 서버가 자동 설정되게
+    const url = !S.db || S.db === DEFAULT_DB ? baseUrl() : `${baseUrl()}?s=${encodeURIComponent(compactDb(S.db))}`;
+    const text = '☕ 단체 커피 주문 앱이에요. 단톡방 링크 하나로 각자 음료를 고르고, 모아서 한 번에 주문하고, 이름 보며 나눠줄 수 있어요. 로그인 없이 무료!\n열고 나서 메뉴(⋮)의 [앱 설치], 아이폰은 공유 버튼의 [홈 화면에 추가]를 눌러 두세요.';
     if (navigator.share) {
       try { await navigator.share({ title: '단체 커피 주문', text, url }); return; }
       catch (e) { if (e && e.name === 'AbortError') return; }
@@ -609,7 +614,7 @@
 
   function render() {
     if (GUEST) $('title').textContent = '☕ ' + (S.title || '단체 주문');
-    else $('title').innerHTML = `<button class="title-btn" id="titleBtn" aria-label="모임 이름 고치기">☕ ${S.title ? esc(S.title) : '<span class="ph">모임 이름 적기</span>'}<span class="pen">✏️</span></button>`;
+    else $('title').innerHTML = `<button class="title-btn" id="titleBtn" aria-label="모임 이름 고치기"><span class="tt">☕ ${S.title ? esc(S.title) : '<span class="ph">모임 이름 적기</span>'}</span><span class="pen">✏️</span></button>`;
     document.title = S.title ? S.title + ' 음료 주문' : '단체 커피 주문';
     if (GUEST) return renderGuest();
     $('total').textContent = S.orders.length;
