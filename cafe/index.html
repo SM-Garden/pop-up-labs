@@ -309,7 +309,7 @@
 (() => {
   // Firebase 주소를 여기에 미리 넣어 두면 설정 없이 바로 링크 기능을 쓸 수 있어요.
   // 예: 'my-cafe-default-rtdb.asia-southeast1.firebasedatabase.app'
-  const DEFAULT_DB = '';
+  const DEFAULT_DB = 'cafe-order-c8098-default-rtdb.asia-southeast1.firebasedatabase.app';
 
   const KEY = 'groupCafeOrder.v2';
   const GUEST_KEY = 'groupCafeOrder.guest';
@@ -342,6 +342,8 @@
   // 총무: menu, orders, room(공유 중인 방 id), db(Firebase 주소), title
   let S = Object.assign({ menu: DEFAULT_MENU.slice(), orders: [], room: '', db: DEFAULT_DB, title: '' }, GUEST ? {} : load(KEY, {}));
   if (GUEST) S.menu = [];
+  // 전에 앱을 열어 봐서 빈 서버 주소가 저장돼 있어도 기본 주소를 써요
+  if (!GUEST && !S.db) S.db = DEFAULT_DB;
   const saveLocal = () => { if (!GUEST) store(KEY, S); };
 
   const temps = (m) => (m.t === 'both' ? ['ICE', 'HOT'] : m.t === 'ice' ? ['ICE'] : m.t === 'hot' ? ['HOT'] : ['']);
