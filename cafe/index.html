@@ -296,7 +296,7 @@
     <p class="hint" style="margin-top:6px">키가 있으면 사진을 Google Gemini가 읽어서 메뉴만 골라 줘요. 무료로 받을 수 있고(SETUP.md 참고), 키는 이 폰에만 저장돼요. 키가 없으면 사진을 폰 안에서만 읽어요.</p>
 
     <p class="sec">메뉴 하나씩 추가</p>
-    <input type="text" id="newMenu" placeholder="예: 자몽에이드" style="margin-top:8px">
+    <input type="text" id="newMenu" placeholder="예: 자몽에이드" style="margin-top:8px" maxlength="30">
     <div class="seg" id="tempSeg">
       <button data-t="both" class="on">아이스+따뜻</button>
       <button data-t="ice">아이스만</button>
@@ -1096,7 +1096,7 @@
     const opts = (t) => ['both', 'ice', 'hot', 'none'].map((v) => `<option value="${v}" ${v === t ? 'selected' : ''}>${{ both: '아이스+따뜻', ice: '아이스만', hot: '따뜻만', none: '구분없음' }[v]}</option>`).join('');
     $('scanBody').innerHTML = items.length
       ? `<p class="hint">${esc(note)} 잘못 읽힌 글자는 고치고, 필요 없는 줄은 체크를 빼 주세요.</p>
-         <div id="scanList">${items.map((it) => `<div class="scan-row" data-price="${it.price || 0}"><input type="checkbox" ${it.checked ? 'checked' : ''} aria-label="넣기"><div class="scan-name"><input type="text" value="${esc(it.name)}">${it.price ? `<small>${won(it.price)}</small>` : ''}</div><select>${opts(it.t)}</select></div>`).join('')}</div>
+         <div id="scanList">${items.map((it) => `<div class="scan-row" data-price="${it.price || 0}"><input type="checkbox" ${it.checked ? 'checked' : ''} aria-label="넣기"><div class="scan-name"><input type="text" value="${esc(it.name)}" maxlength="30">${it.price ? `<small>${won(it.price)}</small>` : ''}</div><select>${opts(it.t)}</select></div>`).join('')}</div>
          <button class="big-btn" id="scanReplace">이 메뉴로 바꾸기</button>
          <div class="two"><button class="big-btn ghost" id="scanAppend">기존 메뉴에 더하기</button><button class="big-btn ghost" id="scanCancel">취소</button></div>`
       : `<p class="hint">${esc(note)} 사진이 흐리거나 기울어지면 잘 안 읽혀요. 메뉴판을 정면에서 가까이, 밝게 다시 찍어 주세요.</p>
