@@ -55,7 +55,23 @@
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     padding: 14px 16px 10px; border-bottom: 1px solid var(--line);
   }
-  header h1 { font-size: 21px; word-break: keep-all; }
+  header h1 { font-size: 21px; word-break: keep-all; min-width: 0; }
+  /* 머리글 모임 이름: 눌러서 바로 고치기 */
+  .title-btn { font: inherit; font-weight: 800; text-align: left; display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; padding: 2px 0; border-bottom: 2px dashed var(--line); }
+  .title-btn .ph { color: var(--sub); font-weight: 700; }
+  .title-btn .pen { font-size: 15px; opacity: .7; flex: none; }
+  .title-edit { display: none; align-items: center; gap: 6px; min-width: 0; flex: 1; }
+  .title-edit.on { display: flex; }
+  .title-edit input { flex: 1; min-width: 0; font: inherit; font-size: 19px; font-weight: 800; padding: 6px 10px; border-radius: 10px; border: 2px solid var(--brand); background: var(--card); color: var(--ink); }
+  .title-edit input:focus { outline: none; }
+  .title-edit button { padding: 8px 12px; border-radius: 10px; background: var(--brand); color: var(--brand-ink); font-size: 15px; font-weight: 800; white-space: nowrap; }
+  /* ① 모으기 화면의 메뉴 줄 */
+  .menu-bar { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 10px 10px 10px 14px; margin-bottom: 12px; }
+  .menu-bar .info { flex: 1; min-width: 0; font-size: 15px; font-weight: 700; word-break: keep-all; }
+  .menu-bar .info small { display: block; font-size: 13px; font-weight: 400; color: var(--sub); }
+  .menu-bar button { padding: 10px 12px; border-radius: 12px; font-size: 15px; font-weight: 800; white-space: nowrap; border: 1px solid var(--line); background: var(--bg); }
+  .menu-bar button.main { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
+  .menu-bar.fresh { border: 2px solid var(--brand); }
   header .total { font-size: 16px; color: var(--sub); white-space: nowrap; }
   header .total b { color: var(--brand); font-size: 22px; }
   .icon-btn { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); font-size: 15px; background: var(--card); white-space: nowrap; }
@@ -211,7 +227,11 @@
 
 <header>
   <h1 id="title">☕ 단체 주문</h1>
-  <div style="display:flex;align-items:center;gap:10px">
+  <div class="title-edit host-only" id="titleEdit">
+    <input type="text" id="titleEditInput" placeholder="예: 청년부 카페 모임" maxlength="30" autocomplete="off" enterkeyhint="done" aria-label="모임 이름">
+    <button id="titleSave">저장</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px" id="headRight">
     <span class="total host-only">총 <b id="total">0</b>잔</span>
     <button class="icon-btn host-only" id="openSettings">⚙︎ 설정</button>
   </div>
@@ -220,6 +240,7 @@
 <main>
   <!-- ===== 총무 화면 ===== -->
   <section class="page on host-only" id="p-collect">
+    <div class="menu-bar" id="menuBar"></div>
     <div class="card share" id="shareCard"></div>
     <p class="hint">폰이 없거나 어려운 분은 여기서 대신 눌러 주세요. 한 번 누를 때마다 한 잔이 추가돼요.</p>
     <div class="grid" id="grid"></div>
@@ -284,18 +305,12 @@
     <h2>설정</h2>
     <button class="big-btn" id="newOrder">🔄 새 주문 시작 (모두 지우기)</button>
 
-    <p class="sec">모임 이름 (링크 받은 사람에게 보여요)</p>
-    <input type="text" id="titleInput" placeholder="예: 청년부 카페 모임" style="margin-top:8px" maxlength="30">
-
-    <p class="sec">이 카페 메뉴 불러오기</p>
-    <button class="big-btn" id="scanMenu">📷 메뉴판 사진으로 불러오기</button>
     <input type="file" id="scanFile" accept="image/*" multiple hidden>
-    <p class="hint" style="margin-top:6px">메뉴판을 정면에서 밝게 찍으면 잘 읽혀요. 메뉴판이 여러 장이면 사진을 한 번에 4장까지 고를 수 있어요.</p>
-    <p class="sec">AI로 더 정확하게 읽기 (선택)</p>
+    <p class="sec">메뉴판 사진을 AI로 더 정확하게 읽기 (선택)</p>
     <input type="text" id="aiKeyInput" placeholder="Gemini API 키 붙여넣기" autocomplete="off" style="margin-top:8px;font-size:15px">
     <p class="hint" style="margin-top:6px">키가 있으면 사진을 Google Gemini가 읽어서 메뉴만 골라 줘요. 무료로 받을 수 있고(SETUP.md 참고), 키는 이 폰에만 저장돼요. 키가 없으면 사진을 폰 안에서만 읽어요.</p>
 
-    <p class="sec">메뉴 하나씩 추가</p>
+    <p class="sec" id="menuSec">메뉴 하나씩 추가</p>
     <input type="text" id="newMenu" placeholder="예: 자몽에이드" style="margin-top:8px" maxlength="30">
     <div class="seg" id="tempSeg">
       <button data-t="both" class="on">아이스+따뜻</button>
@@ -593,7 +608,8 @@
   }
 
   function render() {
-    $('title').textContent = '☕ ' + (S.title || '단체 주문');
+    if (GUEST) $('title').textContent = '☕ ' + (S.title || '단체 주문');
+    else $('title').innerHTML = `<button class="title-btn" id="titleBtn" aria-label="모임 이름 고치기">☕ ${S.title ? esc(S.title) : '<span class="ph">모임 이름 적기</span>'}<span class="pen">✏️</span></button>`;
     document.title = S.title ? S.title + ' 음료 주문' : '단체 커피 주문';
     if (GUEST) return renderGuest();
     $('total').textContent = S.orders.length;
@@ -610,6 +626,13 @@
          <p class="hint" style="margin:0">단톡방에 링크를 보내면 각자 음료를 누르고 이름을 남겨요. 로그인은 필요 없어요.</p>
          <button class="big-btn" id="startRoom">단톡방에 링크 보내기</button>`;
 
+    const fresh = isDefaultMenu();
+    $('menuBar').classList.toggle('fresh', fresh);
+    $('menuBar').innerHTML = fresh
+      ? `<div class="info">📷 이 카페 메뉴로 바꿔 볼까요?<small>메뉴판을 찍으면 메뉴가 자동으로 들어가요 (지금은 기본 메뉴)</small></div>
+         <button class="main" id="scanMenu">메뉴판 찍기</button>`
+      : `<div class="info">📋 메뉴 ${S.menu.length}개<small>메뉴판이 바뀌면 다시 찍어 주세요</small></div>
+         <button id="scanMenu">📷 다시 찍기</button><button id="editMenu" aria-label="메뉴 고치기">✏️</button>`;
     $('grid').innerHTML = gridHtml(true);
 
     const gs = groups();
@@ -720,17 +743,33 @@
   function removeLastOf(key) {
     for (let i = S.orders.length - 1; i >= 0; i--) if (keyOf(S.orders[i]) === key) return removeOrder(S.orders[i].id);
   }
+  const isDefaultMenu = () => S.menu.length === DEFAULT_MENU.length && S.menu.every((m, i) => m.id === DEFAULT_MENU[i].id && m.name === DEFAULT_MENU[i].name && m.t === DEFAULT_MENU[i].t);
+  // 머리글에서 모임 이름 바로 고치기
+  function editTitle() {
+    $('titleEditInput').value = S.title;
+    $('title').style.display = 'none'; $('headRight').style.display = 'none';
+    $('titleEdit').classList.add('on');
+    setTimeout(() => { $('titleEditInput').focus(); $('titleEditInput').select(); }, 30);
+  }
+  function closeTitle(save) {
+    if (!$('titleEdit').classList.contains('on')) return;
+    $('titleEdit').classList.remove('on');
+    $('title').style.display = ''; $('headRight').style.display = '';
+    if (!save) return;
+    const title = $('titleEditInput').value.trim();
+    if (title === S.title) return;
+    S.title = title; saveLocal(); render();
+    if (isShared()) api('PUT', '/title', title).catch(() => toast('모임 이름을 서버에 올리지 못했어요'));
+    toast(title ? `모임 이름: ${title}` : '모임 이름을 지웠어요');
+  }
   function saveSettings() {
     setAiKey($('aiKeyInput').value.trim());
-    const title = $('titleInput').value.trim();
     const db = $('dbInput').value.trim().replace(/\s+/g, '').replace(/^https:\/\//, '').replace(/^([^/]+\.(?:firebaseio\.com|firebasedatabase\.app))\/.*$/, '$1').replace(/\/+$/, '');
-    const titleChanged = title !== S.title;
     if (db !== S.db && S.room) { S.room = ''; stopListen(); }
-    S.title = title; S.db = db; saveLocal(); render();
-    if (titleChanged && isShared()) api('PUT', '/title', title).catch(() => {});
+    S.db = db; saveLocal(); render();
   }
   function openSettings() {
-    $('titleInput').value = S.title; $('dbInput').value = S.db; $('aiKeyInput').value = getAiKey();
+    $('dbInput').value = S.db; $('aiKeyInput').value = getAiKey();
     $('setModal').classList.add('on');
   }
 
@@ -1076,7 +1115,7 @@
   }
 
   async function scanPhotos(files) {
-    saveSettings(); $('setModal').classList.remove('on');
+    if ($('setModal').classList.contains('on')) { saveSettings(); $('setModal').classList.remove('on'); }
     const useAi = !!getAiKey();
     $('scanTitle').textContent = '메뉴판 읽는 중…';
     $('scanBody').innerHTML = `<p class="hint" id="scanStep">${useAi ? 'AI가 메뉴판을 읽고 있어요 (5~15초)' : '글자 인식 도구를 준비하고 있어요 (처음 한 번은 10~20초 걸려요)'}</p><div class="bar"><i id="scanBar"></i></div>
@@ -1188,6 +1227,9 @@
         }
         break;
       case 'openSettings': openSettings(); break;
+      case 'titleBtn': editTitle(); break;
+      case 'titleSave': closeTitle(true); break;
+      case 'editMenu': openSettings(); setTimeout(() => $('menuSec').scrollIntoView({ block: 'start' }), 60); break;
       case 'setClose': saveSettings(); $('setModal').classList.remove('on'); break;
       case 'newOrder':
         if (!S.orders.length || confirm('지금까지 모은 주문을 모두 지울까요?')) {
@@ -1218,6 +1260,9 @@
   });
   $('scanFile').addEventListener('change', (e) => { const fs = [...(e.target.files || [])].slice(0, 4); if (fs.length) scanPhotos(fs); });
   $('nameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sheetOk(); });
+  $('titleEditInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') closeTitle(true); if (e.key === 'Escape') closeTitle(false); });
+  // 다른 곳을 누르면 저장 (저장 버튼을 누른 경우는 버튼이 처리)
+  $('titleEditInput').addEventListener('blur', () => setTimeout(() => closeTitle(true), 150));
   $('nameInput').addEventListener('input', () => { $('nameInput').style.borderColor = ''; });
   $('newMenu').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('addMenu').click(); });
   document.querySelectorAll('.modal').forEach((m) => m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('on'); }));
