@@ -208,6 +208,14 @@
   .sec { margin-top: 22px; font-size: 15px; font-weight: 800; color: var(--sub); }
 
   /* 사진으로 메뉴 불러오기 결과 */
+  /* 메뉴판 불러오기 방법 고르기 */
+  .pick-btn { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 16px; border-radius: 14px; border: 2px solid var(--line); background: var(--bg); margin-top: 10px; }
+  .pick-btn .ic { font-size: 30px; line-height: 1; }
+  .pick-btn b { display: block; font-size: 18px; }
+  .pick-btn small { display: block; font-size: 14px; color: var(--sub); margin-top: 2px; }
+  .pick-btn.main { border-color: var(--brand); }
+  .shots { display: flex; gap: 8px; margin: 6px 0 4px; flex-wrap: wrap; }
+  .shots img { width: 64px; height: 84px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
   .scan-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
   .scan-row input[type=checkbox] { width: 26px; height: 26px; accent-color: var(--brand); flex: none; }
   .scan-row .scan-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -315,6 +323,7 @@
     <p class="hint" style="margin-top:6px">주문받는 링크가 아니라 <b>이 앱 자체</b>를 보내요. 받은 사람도 자기 모임에서 총무로 쓸 수 있어요. AI 키는 함께 보내지 않아요.</p>
 
     <input type="file" id="scanFile" accept="image/*" multiple hidden>
+    <input type="file" id="camFile" accept="image/*" capture="environment" hidden>
     <p class="sec">메뉴판 사진을 AI로 더 정확하게 읽기 (선택)</p>
     <input type="text" id="aiKeyInput" placeholder="Gemini API 키 붙여넣기" autocomplete="off" style="margin-top:8px;font-size:15px">
     <p class="hint" style="margin-top:6px">키가 있으면 사진을 Google Gemini가 읽어서 메뉴만 골라 줘요. 무료로 받을 수 있고(SETUP.md 참고), 키는 이 폰에만 저장돼요. 키가 없으면 사진을 폰 안에서만 읽어요.</p>
@@ -339,6 +348,14 @@
     <a class="big-btn ghost" href="stats.html" style="text-align:center;text-decoration:none">📊 사용 통계 보기</a>
 
     <button class="big-btn" id="setClose">저장하고 닫기</button>
+  </div>
+</div>
+
+<!-- 메뉴판 불러오기: 카메라 / 앨범 고르기 -->
+<div class="modal" id="pickModal">
+  <div class="sheet">
+    <h2 id="pickTitle">메뉴판 불러오기</h2>
+    <div id="pickBody"></div>
   </div>
 </div>
 
@@ -1155,6 +1172,28 @@
     if (!$('scanModal').classList.contains('on')) return;
     showScanResult(items, note);
   }
+  // 메뉴판 불러오기: 카메라로 찍기(여러 장 이어 찍기) / 앨범에서 고르기
+  let shots = [];
+  function openPicker() { shots = []; renderPicker(); $('pickModal').classList.add('on'); }
+  function renderPicker() {
+    const tip = '<p class="hint" style="margin-top:12px">메뉴판을 정면에서 밝게, 글씨가 화면을 꽉 채우게 찍으면 잘 읽혀요.</p>';
+    if (!shots.length) {
+      $('pickTitle').textContent = '메뉴판 불러오기';
+      $('pickBody').innerHTML = `
+        <button class="pick-btn main" id="camShot"><span class="ic">📷</span><span><b>카메라로 찍기</b><small>지금 메뉴판을 바로 찍어요</small></span></button>
+        <button class="pick-btn" id="galleryPick"><span class="ic">🖼️</span><span><b>앨범에서 고르기</b><small>찍어 둔 사진을 골라요 (최대 4장)</small></span></button>
+        ${tip}<button class="big-btn ghost" id="pickClose">닫기</button>`;
+      return;
+    }
+    $('pickTitle').textContent = `메뉴판 사진 ${shots.length}장`;
+    const urls = shots.map((f) => URL.createObjectURL(f));
+    $('pickBody').innerHTML = `
+      <div class="shots">${urls.map((u, i) => `<img src="${u}" alt="${i + 1}번째 사진">`).join('')}</div>
+      <p class="hint">메뉴판이 여러 장이면 이어서 찍어 주세요.</p>
+      <button class="big-btn" id="readShots">✅ 이 사진으로 메뉴 읽기</button>
+      ${shots.length < 4 ? '<button class="big-btn ghost" id="camShot">📷 한 장 더 찍기</button>' : ''}
+      <button class="big-btn ghost" id="pickClose" style="padding:10px;font-size:15px">취소</button>`;
+  }
   const won = (n) => (n ? n.toLocaleString('ko-KR') + '원' : '');
   function showScanResult(items, note) {
     $('scanTitle').textContent = items.length ? `메뉴 ${items.length}개를 찾았어요` : '메뉴를 찾지 못했어요';
@@ -1254,7 +1293,11 @@
         toast(`'${name}' 메뉴를 추가했어요`); break;
       }
       case 'resetMenu': if (confirm('기본 메뉴로 되돌릴까요? (모은 주문은 유지돼요)')) { S.menu = DEFAULT_MENU.slice(); pushMenu(); } break;
-      case 'scanMenu': case 'scanAgain': $('scanFile').value = ''; $('scanFile').click(); break;
+      case 'scanMenu': case 'scanAgain': $('scanModal').classList.remove('on'); openPicker(); break;
+      case 'camShot': $('camFile').value = ''; $('camFile').click(); break;
+      case 'galleryPick': $('pickModal').classList.remove('on'); $('scanFile').value = ''; $('scanFile').click(); break;
+      case 'readShots': $('pickModal').classList.remove('on'); if (shots.length) scanPhotos(shots.slice(0, 4)); break;
+      case 'pickClose': $('pickModal').classList.remove('on'); break;
       case 'scanCancel': $('scanModal').classList.remove('on'); break;
       case 'scanReplace': applyScan(true); break;
       case 'scanAppend': applyScan(false); break;
@@ -1266,6 +1309,7 @@
     if (S.shortLink) { $('linkBox').textContent = '짧은 링크를 만드는 중…'; if (await makeShort()) toast('짧은 링크로 바꿨어요'); }
     else render();
   });
+  $('camFile').addEventListener('change', (e) => { const f = (e.target.files || [])[0]; if (f) { shots.push(f); renderPicker(); } });
   $('scanFile').addEventListener('change', (e) => { const fs = [...(e.target.files || [])].slice(0, 4); if (fs.length) scanPhotos(fs); });
   $('nameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sheetOk(); });
   $('titleEditInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') closeTitle(true); if (e.key === 'Escape') closeTitle(false); });
