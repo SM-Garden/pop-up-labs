@@ -233,6 +233,13 @@
   .fb textarea:focus, .fb input:focus { outline: none; border-color: var(--brand); }
   .fb input[type=text] { font-size: 16px !important; padding: 10px 14px !important; margin-top: 8px; }
   .fb .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+  /* 저장한 카페 */
+  .cafe-row { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+  .cafe-row .pick { flex: 1; text-align: left; padding: 12px 2px; min-width: 0; }
+  .cafe-row .pick b { display: block; font-size: 18px; word-break: keep-all; }
+  .cafe-row .pick small { display: block; font-size: 13px; color: var(--sub); margin-top: 2px; }
+  .cafe-row .now { font-size: 12px; font-weight: 800; color: var(--ok); background: var(--ok-bg); border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
+  .cafe-row .del { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); font-size: 14px; color: var(--danger); flex: none; }
   .copy { text-align: center; font-size: 12px; color: var(--sub); margin-top: 18px; }
   .scan-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
   .scan-row input[type=checkbox] { width: 26px; height: 26px; accent-color: var(--brand); flex: none; }
@@ -377,6 +384,14 @@
 
     <button class="big-btn" id="setClose">저장하고 닫기</button>
     <p class="copy">© 2026 Hanbat.Timothy. All rights reserved.</p>
+  </div>
+</div>
+
+<!-- 저장한 카페 메뉴 불러오기 / 저장하기 -->
+<div class="modal" id="cafeModal">
+  <div class="sheet">
+    <h2 id="cafeTitle">카페 메뉴 불러오기</h2>
+    <div id="cafeBody"></div>
   </div>
 </div>
 
@@ -557,8 +572,21 @@
     S.orders = S.orders.filter((x) => x.id !== id); saveLocal(); render();
     if (isShared()) { try { await api('DELETE', '/orders/' + id); } catch (e) { toast('지우지 못했어요.'); refetch(); } }
   }
+  // ---------- 자주 가는 카페 메뉴 저장 (이 폰에만) ----------
+  const CAFES_KEY = 'groupCafeOrder.cafes';
+  const loadCafes = () => load(CAFES_KEY, []);
+  const saveCafes = (list) => store(CAFES_KEY, list.slice(0, 30));
+  const curCafe = () => (S.cafeId ? loadCafes().find((c) => c.id === S.cafeId) : null);
+  const copyMenu = (m) => m.map((x) => Object.assign({}, x));
+  // 불러온 카페 메뉴를 고치면 저장본도 함께 고쳐요
+  function syncCafe() {
+    if (GUEST || !S.cafeId) return;
+    const list = loadCafes(), c = list.find((x) => x.id === S.cafeId);
+    if (!c) { S.cafeId = null; return; }
+    c.menu = copyMenu(S.menu); c.used = Date.now(); saveCafes(list);
+  }
   async function pushMenu() {
-    saveLocal(); render();
+    syncCafe(); saveLocal(); render();
     if (isShared() && !GUEST) { try { await api('PUT', '/menu', S.menu); } catch (e) { toast('메뉴를 서버에 올리지 못했어요.'); } }
   }
 
@@ -691,13 +719,16 @@
          <p class="hint" style="margin:0">단톡방에 링크를 보내면 각자 음료를 누르고 이름을 남겨요. 로그인은 필요 없어요.</p>
          <button class="big-btn" id="startRoom">단톡방에 링크 보내기</button>`;
 
-    const fresh = isDefaultMenu();
+    const cafes = loadCafes(), cur = curCafe(), fresh = isDefaultMenu() && !cur;
     $('menuBar').classList.toggle('fresh', fresh);
     $('menuBar').innerHTML = fresh
-      ? `<div class="info">📷 이 카페 메뉴로 바꿔 볼까요?<small>메뉴판을 찍으면 메뉴가 자동으로 들어가요 (지금은 기본 메뉴)</small></div>
-         <button class="main" id="scanMenu">메뉴판 찍기</button>`
-      : `<div class="info">📋 메뉴 ${S.menu.length}개<small>메뉴판이 바뀌면 다시 찍어 주세요</small></div>
-         <button id="scanMenu">📷 다시 찍기</button><button id="editMenu" aria-label="메뉴 고치기">✏️</button>`;
+      ? (cafes.length
+        ? `<div class="info">☕ 어느 카페에 가세요?<small>저장한 카페 ${cafes.length}곳 · 처음 가는 곳은 메뉴판을 찍어 주세요</small></div>
+           <button class="main" id="cafeOpen">불러오기</button><button id="scanMenu" aria-label="메뉴판 찍기">📷</button>`
+        : `<div class="info">📷 이 카페 메뉴로 바꿔 볼까요?<small>메뉴판을 찍으면 메뉴가 자동으로 들어가요 (지금은 기본 메뉴)</small></div>
+           <button class="main" id="scanMenu">메뉴판 찍기</button>`)
+      : `<div class="info">📋 ${cur ? esc(cur.name) : '메뉴'} · ${S.menu.length}개<small>${cur ? '저장된 카페 메뉴예요 · 고치면 자동 저장' : '아직 저장하지 않은 메뉴예요'}</small></div>
+         <button id="cafeOpen">${cur || cafes.length ? '불러오기' : '저장'}</button><button id="scanMenu" aria-label="메뉴판 다시 찍기">📷</button><button id="editMenu" aria-label="메뉴 고치기">✏️</button>`;
     $('grid').innerHTML = gridHtml(true);
 
     const gs = groups();
@@ -814,6 +845,56 @@
     if (o.by === 'guest' && !confirm(`${o.name || '이름 없는 분'}님이 링크로 주문한 음료예요. 지울까요?`)) return;
     return removeOrder(o.id);
   }
+  // 카페 메뉴 창: mode 'list' (불러오기 + 저장) / 'save' (메뉴판을 읽은 직후 저장 권하기)
+  let cafeMode = 'list';
+  function openCafes(mode) { cafeMode = mode || 'list'; $('snack').classList.remove('on'); renderCafes(); $('cafeModal').classList.add('on'); if (cafeMode === 'save') setTimeout(() => $('cafeName').focus(), 80); }
+  function renderCafes() {
+    const list = loadCafes().sort((a, b) => b.used - a.used), cur = curCafe();
+    const day = (t) => { const d = new Date(t); return `${d.getMonth() + 1}월 ${d.getDate()}일`; };
+    const saveBox = `
+      <input type="text" id="cafeName" maxlength="30" placeholder="예: 컴포즈커피 대전원내점" value="${cur ? esc(cur.name) : ''}" autocomplete="off" style="margin-top:8px">
+      <button class="big-btn" id="cafeSave">💾 지금 메뉴(${S.menu.length}개) 저장</button>`;
+    if (cafeMode === 'save') {
+      $('cafeTitle').textContent = '이 메뉴를 저장해 둘까요?';
+      $('cafeBody').innerHTML = `<p class="hint">카페 이름을 적어 두면, 다음에 이 카페에 올 때 사진 없이 바로 불러올 수 있어요.</p>${saveBox}
+        <button class="big-btn ghost" id="cafeClose">나중에</button>`;
+      return;
+    }
+    $('cafeTitle').textContent = '카페 메뉴 불러오기';
+    $('cafeBody').innerHTML = (list.length
+      ? `<div>${list.map((c) => `<div class="cafe-row"><button class="pick" data-cafe="${c.id}"><b>${esc(c.name)}${cur && cur.id === c.id ? '<span class="now">지금 메뉴</span>' : ''}</b><small>메뉴 ${c.menu.length}개 · ${day(c.used)}</small></button><button class="del" data-cafedel="${c.id}" aria-label="${esc(c.name)} 지우기">지우기</button></div>`).join('')}</div>`
+      : '<p class="hint">아직 저장한 카페가 없어요. 메뉴판을 찍어 메뉴를 넣은 뒤 저장해 두면, 다음부터 사진 없이 바로 불러올 수 있어요.</p>')
+      + `<p class="sec">${cur ? '지금 메뉴 다시 저장 (이름을 바꾸면 새로 저장)' : '지금 메뉴를 카페 이름으로 저장'}</p>${saveBox}
+         <button class="big-btn ghost" id="cafeClose">닫기</button>`;
+  }
+  function saveCafe() {
+    const name = $('cafeName').value.trim();
+    if (!name) { $('cafeName').focus(); toast('카페 이름을 적어 주세요'); return; }
+    const list = loadCafes();
+    let c = list.find((x) => x.name === name);
+    if (c) { c.menu = copyMenu(S.menu); c.used = Date.now(); }
+    else { c = { id: 'c' + rid(8), name, menu: copyMenu(S.menu), used: Date.now() }; list.unshift(c); }
+    saveCafes(list); S.cafeId = c.id; saveLocal(); render();
+    $('cafeModal').classList.remove('on');
+    toast(`'${name}' 메뉴를 저장했어요`);
+  }
+  function useCafe(id) {
+    const list = loadCafes(), c = list.find((x) => x.id === id); if (!c) return;
+    if (S.orders.length && S.cafeId !== id && !confirm('지금 모은 주문이 있어요. 메뉴를 바꾸면 새 메뉴에 없는 음료는 "(삭제된 메뉴)"로 보여요. 바꿀까요?')) return;
+    c.used = Date.now(); saveCafes(list);
+    S.menu = copyMenu(c.menu); S.cafeId = id;
+    pushMenu();
+    $('cafeModal').classList.remove('on');
+    toast(`'${c.name}' 메뉴를 불러왔어요`);
+  }
+  function deleteCafe(id) {
+    const list = loadCafes(), c = list.find((x) => x.id === id); if (!c) return;
+    if (!confirm(`'${c.name}' 메뉴를 지울까요?\n(지금 화면의 메뉴는 그대로예요)`)) return;
+    saveCafes(list.filter((x) => x.id !== id));
+    if (S.cafeId === id) { S.cafeId = null; saveLocal(); }
+    render(); renderCafes();
+  }
+
   // 기능 제안 보내기 (Web3Forms → 관리자 메일)
   async function sendFeedback() {
     const msg = $('fbMsg').value.trim();
@@ -1449,10 +1530,12 @@
       .map((r) => ({ id: 'u' + rid(6), name: r.querySelector('input[type=text]').value.trim(), t: r.querySelector('select').value, price: +r.dataset.price || 0 }))
       .filter((m) => m.name);
     if (!picked.length) return toast('선택된 메뉴가 없어요');
+    if (replace) S.cafeId = null;   // 새 메뉴판은 아직 저장 전
     S.menu = replace ? picked : S.menu.concat(picked);
     pushMenu();
     $('scanModal').classList.remove('on');
-    toast(`메뉴 ${picked.length}개를 넣었어요`);
+    if (S.cafeId) toast(`메뉴 ${picked.length}개를 더해서 '${curCafe().name}'에 저장했어요`);
+    else openCafes('save');
   }
 
   // ---------- 이벤트 ----------
@@ -1464,6 +1547,8 @@
       if (!GUEST && longPressed) { longPressed = false; return; }   // 길게 누른 뒤 손을 뗄 때 생기는 클릭은 무시
       return GUEST ? openSheet({ mode: 'guest', key: d.add }) : hostAdd(d.add);
     }
+    if (d.cafe) return useCafe(d.cafe);
+    if (d.cafedel) return deleteCafe(d.cafedel);
     if (d.qplus) { const [menuId, temp] = d.qplus.split('|'); addOrder({ menuId, temp, by: 'host' }).catch(() => {}); return; }
     if (d.qminus) return removeLastOf(d.qminus);
     if (d.qdel) {
@@ -1539,7 +1624,10 @@
         S.menu.push({ id: 'u' + rid(6), name, t }); $('newMenu').value = ''; pushMenu();
         toast(`'${name}' 메뉴를 추가했어요`); break;
       }
-      case 'resetMenu': if (confirm('기본 메뉴로 되돌릴까요? (모은 주문은 유지돼요)')) { S.menu = DEFAULT_MENU.slice(); pushMenu(); } break;
+      case 'resetMenu': if (confirm('기본 메뉴로 되돌릴까요? (모은 주문은 유지돼요)')) { S.cafeId = null; S.menu = DEFAULT_MENU.slice(); pushMenu(); } break;
+      case 'cafeOpen': openCafes('list'); break;
+      case 'cafeSave': saveCafe(); break;
+      case 'cafeClose': $('cafeModal').classList.remove('on'); break;
       case 'scanMenu': case 'scanAgain': $('scanModal').classList.remove('on'); openPicker(); break;
       case 'camShot': $('camFile').value = ''; $('camFile').click(); break;
       case 'galleryPick': $('pickModal').classList.remove('on'); $('scanFile').value = ''; $('scanFile').click(); break;
@@ -1576,6 +1664,7 @@
   $('camFile').addEventListener('change', (e) => { const f = (e.target.files || [])[0]; if (f) { shots.push(f); renderPicker(); } });
   $('scanFile').addEventListener('change', (e) => { const fs = [...(e.target.files || [])].slice(0, 4); if (fs.length) scanPhotos(fs); });
   $('nameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sheetOk(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'cafeName') saveCafe(); });
   $('titleEditInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') closeTitle(true); if (e.key === 'Escape') closeTitle(false); });
   // 다른 곳을 누르면 저장 (저장 버튼을 누른 경우는 버튼이 처리)
   $('titleEditInput').addEventListener('blur', () => setTimeout(() => closeTitle(true), 150));
