@@ -1100,12 +1100,13 @@
     }
     return n;
   }
-  function finalizeItems(items) {
+  function finalizeItems(items, opt = {}) {
     const seen = new Set(), out = [];
     for (const it of items) {
-      const name = fixMenuWords(glueSyllables((it.name || '').replace(/\s+/g, ' ').trim()));
+      const raw = glueSyllables((it.name || '').replace(/\s+/g, ' ').trim());
+      const name = opt.noFix ? raw : fixMenuWords(raw);
       const k = name.replace(/\s/g, '');
-      if (k.length < 2 || k.length > 16 || seen.has(k) || SKIP_WORDS.test(k)) continue;
+      if (k.length < 2 || k.length > 16 || seen.has(k) || (!opt.noFix && SKIP_WORDS.test(k))) continue;
       seen.add(k);
       out.push({ name, t: it.t || guessTemp(name), price: it.price || 0, checked: it.checked !== false });
     }
@@ -1491,14 +1492,28 @@
     showScanResult(items, note);
   }
   // 메뉴판 불러오기: 카메라로 찍기(여러 장 이어 찍기) / 앨범에서 고르기
-  let shots = [];
-  function openPicker() { shots = []; renderPicker(); $('pickModal').classList.add('on'); }
+  let shots = [], pickMode = '';
+  function openPicker(mode) { shots = []; pickMode = mode || ''; renderPicker(); $('pickModal').classList.add('on'); }
   function renderPicker() {
     const tip = '<p class="hint" style="margin-top:12px">메뉴판을 정면에서 밝게, 글씨가 화면을 꽉 채우게 찍으면 잘 읽혀요.</p>';
+    if (pickMode === 'ai') {
+      $('pickTitle').textContent = 'AI 앱으로 메뉴판 읽기';
+      $('pickBody').innerHTML = `
+        <p class="sec" style="margin-top:0">① 부탁 문구를 복사하고 AI 앱 열기</p>
+        <button class="big-btn" id="aiGemini" style="margin-top:8px">📋 문구 복사하고 Gemini 열기</button>
+        <button class="big-btn ghost" id="aiCopy" style="padding:10px;font-size:15px">문구만 복사 (ChatGPT 등 다른 AI 앱)</button>
+        <p class="hint" style="margin-top:8px">AI 앱에서 <b>메뉴판 사진을 올리고</b>, 복사한 문구를 <b>붙여넣어 보내요</b>. 표가 나오면 <b>표를 통째로 복사</b>해서 돌아오세요.</p>
+        <p class="sec">② AI가 만든 표 붙여넣기</p>
+        <div class="fb"><textarea id="aiText" placeholder="여기에 AI가 만든 표를 붙여넣어요" style="margin-top:8px;min-height:120px"></textarea></div>
+        <div class="two"><button class="big-btn ghost" id="aiClip">📋 붙여넣기</button><button class="big-btn" id="aiParse">메뉴로 만들기</button></div>
+        <button class="big-btn ghost" id="pickClose" style="padding:10px;font-size:15px">닫기</button>`;
+      return;
+    }
     if (!shots.length) {
       $('pickTitle').textContent = '메뉴판 불러오기';
       $('pickBody').innerHTML = `
         <button class="pick-btn main" id="camShot"><span class="ic">📷</span><span><b>카메라로 찍기</b><small>지금 메뉴판을 바로 찍어요</small></span></button>
+        <button class="pick-btn" id="aiMode"><span class="ic">🤖</span><span><b>AI 앱으로 읽기 <small style="display:inline;color:var(--ok);font-weight:800">더 정확해요</small></b><small>Gemini 같은 AI 앱이 읽은 표를 붙여넣어요 (키 없이)</small></span></button>
         <button class="pick-btn" id="galleryPick"><span class="ic">🖼️</span><span><b>앨범에서 고르기</b><small>찍어 둔 사진을 골라요 (최대 4장)</small></span></button>
         ${tip}<button class="big-btn ghost" id="pickClose">닫기</button>`;
       return;
@@ -1511,6 +1526,100 @@
       <button class="big-btn" id="readShots">✅ 이 사진으로 메뉴 읽기</button>
       ${shots.length < 4 ? '<button class="big-btn ghost" id="camShot">📷 한 장 더 찍기</button>' : ''}
       <button class="big-btn ghost" id="pickClose" style="padding:10px;font-size:15px">취소</button>`;
+  }
+  // AI 앱에 보낼 부탁 문구
+  const AI_PROMPT = `첨부한 카페 메뉴판 사진에서 주문할 수 있는 메뉴를 모두 찾아, 아래 형식의 표로만 답해 주세요. 다른 설명은 쓰지 마세요.
+
+| 이름 | 온도 | 가격 |
+|---|---|---|
+
+- 이름: 한글 메뉴 이름만 (영어 이름, 설명 제외). 메뉴판에 적힌 그대로.
+- 온도: '아이스+따뜻', '아이스만', '따뜻만', '구분없음' 중 하나. ONLY ICE 표시나 에이드·스무디·주스·프라페·쉐이크는 '아이스만', ONLY HOT은 '따뜻만', 디저트·빵은 '구분없음'.
+- 가격: 원 단위 숫자 (예: 3.5 → 3500). 분류 제목 옆에만 가격이 있으면 그 가격을 쓰고, 모르면 0.
+- 분류 제목(커피, 라떼 등), 옵션(샷 추가, 시럽 추가 등), 가게 이름·영업시간은 빼 주세요.
+- 메뉴판에 여러 장이 있으면 모두 합쳐 주세요.`;
+  const AI_PENDING = 'groupCafeOrder.aiPending';
+  // 붙여넣은 표(마크다운 표, 쉼표·탭 구분, 줄글)를 메뉴로
+  function parsePastedMenu(text) {
+    const tempOf = (t) => {
+      t = (t || '').replace(/\s/g, '').toLowerCase();
+      if (/아이스\+?따뜻|둘다|both|hot\/ice|ice\/hot|아이스\/따뜻|따뜻\/아이스|핫\/아이스/.test(t)) return 'both';
+      if (/아이스만|아이스전용|onlyice|iceonly|^ice$|^아이스$|차갑/.test(t)) return 'ice';
+      if (/따뜻만|따뜻전용|onlyhot|hotonly|^hot$|^따뜻$|^핫$/.test(t)) return 'hot';
+      if (/구분없음|없음|해당없음|^-$|none/.test(t)) return 'none';
+      return '';
+    };
+    const won = (c) => {
+      const t = String(c).replace(/[원₩\s*]/g, '');
+      if (/^\d{1,2}\.\d$/.test(t)) return Math.round(parseFloat(t) * 1000);
+      const m = t.match(/^(\d{1,3}(?:,\d{3})+|\d{3,6})$/);
+      if (m) { const v = +m[1].replace(/,/g, ''); return v >= 300 && v <= 100000 ? v : 0; }
+      return 0;
+    };
+    const items = [];
+    let col = null;   // 머리 줄에서 찾은 칸 위치 { name, price, temp }
+    for (let line of String(text).split(/\r?\n/)) {
+      line = line.replace(/\*\*|__|`/g, '').trim();
+      if (!line || /^\|?\s*:?-{2,}/.test(line)) continue;                       // 표의 구분 줄
+      let cells = line.includes('|') ? line.replace(/^\||\|$/g, '').split('|') : line.includes('\t') ? line.split('\t') : line.split(/\s*[,·]\s+|\s+[-–:]\s+/);
+      cells = cells.map((c) => c.trim()).filter(Boolean);
+      if (!cells.length) continue;
+      // 머리 줄: '메뉴/이름', '가격', '온도'가 어느 칸인지 기억해요
+      const isHead = (c) => /^(이름|메뉴|메뉴명|메뉴 이름|품목|음료|name|menu)$/i.test(c);
+      if (cells.some(isHead) && !cells.some((c) => won(c))) {
+        col = { name: cells.findIndex(isHead), price: cells.findIndex((c) => /가격|금액|price/i.test(c)), temp: cells.findIndex((c) => /온도|ice|hot|아이스|따뜻/i.test(c)) };
+        continue;
+      }
+      let name = '', price = 0, t = '';
+      if (col && cells.length > col.name) {
+        name = cells[col.name] || '';
+        if (col.price >= 0) price = won(cells[col.price] || '');
+        if (col.temp >= 0) t = tempOf(cells[col.temp] || '');
+      }
+      for (const c of (name ? [] : cells)) {
+        if (!name && /[가-힣]/.test(c) && !tempOf(c)) { name = c; continue; }
+        if (!price && won(c)) { price = won(c); continue; }
+        if (!t && tempOf(c)) t = tempOf(c);
+      }
+      if (name && !price) for (const c of cells) if (won(c)) { price = won(c); break; }
+      if (name && !t) for (const c of cells) { if (c !== name && tempOf(c)) { t = tempOf(c); break; } }
+      // 줄글: "아메리카노 (ICE) 3,500원"
+      if (cells.length === 1) {
+        const m = line.match(/^(?:\d+[.)]\s*|[-•]\s*)?(.+?)\s*(?:\(([^)]*)\))?\s*(\d{1,2}\.\d|\d{1,3}(?:,\d{3})+|\d{3,6})\s*원?$/);
+        if (m) { name = m[1]; price = won(m[3]); t = tempOf(m[2] || ''); }
+      }
+      // 표가 아닌 줄글은 가격이 있어야 메뉴로 봐요 (AI의 인사말·설명 줄 빼기), 옵션 줄도 빼기
+      if (!line.includes('|') && !line.includes('\t') && !price) continue;
+      if (/추가|옵션|변경|사이즈업|할인/.test(name.replace(/\s/g, ''))) continue;
+      name = name.replace(/^\d+[.)]\s*|^[-•]\s*/, '').replace(/\([^)]*\)/g, '').replace(/[^가-힣a-zA-Z0-9\s/&+]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!/[가-힣]{2}/.test(name.replace(/\s/g, ''))) continue;
+      items.push({ name, t: t || guessTemp(name), price });
+    }
+    return finalizeItems(items, { noFix: true });
+  }
+  function readPasted() {
+    const text = $('aiText').value.trim();
+    if (!text) { $('aiText').focus(); toast('AI가 만든 표를 붙여넣어 주세요'); return; }
+    const items = parsePastedMenu(text);
+    if (!items.length) { toast('메뉴를 찾지 못했어요. 표를 통째로 복사해서 붙여넣어 주세요'); return; }
+    try { localStorage.removeItem(AI_PENDING); } catch (e) {}
+    $('pickModal').classList.remove('on');
+    $('scanTitle').textContent = ''; $('scanModal').classList.add('on');
+    showScanResult(items, 'AI 앱의 표로 만들었어요.');
+  }
+  async function copyPrompt(openGemini) {
+    const btn = $(openGemini ? 'aiGemini' : 'aiCopy'), label = btn.textContent;
+    try { await navigator.clipboard.writeText(AI_PROMPT); btn.textContent = '✅ 복사했어요 — AI 앱에 사진과 함께 붙여넣어 보내 주세요'; setTimeout(() => { if (btn.isConnected) btn.textContent = label; }, 3500); }
+    catch (e) { prompt('아래 문구를 복사해 주세요', AI_PROMPT); }
+    try { localStorage.setItem(AI_PENDING, String(Date.now())); } catch (e) {}
+    if (openGemini) window.open('https://gemini.google.com/app', '_blank');
+  }
+  // AI 앱에 다녀오면 붙여넣기 화면을 다시 열어 줘요 (15분 안)
+  function resumeAiPaste() {
+    if (GUEST) return;
+    let t = 0; try { t = +localStorage.getItem(AI_PENDING) || 0; } catch (e) {}
+    if (!t || Date.now() - t > 15 * 60 * 1000 || document.querySelector('.modal.on')) return;
+    openPicker('ai');
   }
   const won = (n) => (n ? n.toLocaleString('ko-KR') + '원' : '');
   function showScanResult(items, note) {
@@ -1632,7 +1741,13 @@
       case 'camShot': $('camFile').value = ''; $('camFile').click(); break;
       case 'galleryPick': $('pickModal').classList.remove('on'); $('scanFile').value = ''; $('scanFile').click(); break;
       case 'readShots': $('pickModal').classList.remove('on'); if (shots.length) scanPhotos(shots.slice(0, 4)); break;
-      case 'pickClose': $('pickModal').classList.remove('on'); break;
+      case 'pickClose': $('pickModal').classList.remove('on'); if (pickMode === 'ai') { try { localStorage.removeItem(AI_PENDING); } catch (e) {} } break;
+      case 'aiMode': pickMode = 'ai'; renderPicker(); break;
+      case 'aiGemini': copyPrompt(true); break;
+      case 'aiCopy': copyPrompt(false); break;
+      case 'aiParse': readPasted(); break;
+      case 'aiClip': navigator.clipboard.readText().then((t) => { if (t) $('aiText').value = t; else toast('복사한 내용이 없어요'); })
+        .catch(() => { $('aiText').focus(); toast('붙여넣기 칸을 길게 눌러 [붙여넣기]를 골라 주세요'); }); break;
       case 'fbSend': sendFeedback(); break;
       case 'qtyClose': $('qtyModal').classList.remove('on'); qtyKey = null; break;
       case 'scanCancel': $('scanModal').classList.remove('on'); break;
@@ -1685,6 +1800,8 @@
   render();
   if (isShared()) listen();
   if (GUEST) statOnce('guestOpens', params.get('r')); else statOnce('hostDevices');
+  resumeAiPaste();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) resumeAiPaste(); });
 
   // 홈 화면 앱으로 빨리 열리게 (지원하는 브라우저에서만)
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
