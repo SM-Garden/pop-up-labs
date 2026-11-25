@@ -246,6 +246,12 @@
   .cafe-row .pick small { display: block; font-size: 13px; color: var(--sub); margin-top: 2px; }
   .cafe-row .now { font-size: 12px; font-weight: 800; color: var(--ok); background: var(--ok-bg); border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
   .cafe-row .del { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); font-size: 14px; color: var(--danger); flex: none; }
+  /* 새 기능 알림 · 사용 설명서 (이미지 보기) */
+  .img-sheet { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .img-sheet .img-scroll { overflow: auto; flex: 1; -webkit-overflow-scrolling: touch; }
+  .img-sheet img { display: block; width: 100%; height: auto; }
+  .img-sheet .img-foot { display: flex; gap: 8px; padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--card); }
+  .img-sheet .img-foot .big-btn { margin-top: 0; flex: 1; padding: 14px; font-size: 17px; }
   .copy { text-align: center; font-size: 12px; color: var(--sub); margin-top: 18px; }
   .scan-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
   .scan-row input[type=checkbox] { width: 26px; height: 26px; accent-color: var(--brand); flex: none; }
@@ -351,6 +357,7 @@
   <div class="sheet">
     <h2>설정</h2>
     <button class="big-btn" id="newOrder">🔄 새 주문 시작 (모두 지우기)</button>
+    <div class="two" style="margin-top:8px"><button class="big-btn ghost" id="openManual" style="margin-top:0">📖 사용 설명서</button><button class="big-btn ghost" id="openNews" style="margin-top:0">✨ 새로 생긴 기능</button></div>
 
     <p class="sec">이 앱을 다른 총무에게 소개하기</p>
     <button class="big-btn ghost" id="shareApp" style="margin-top:8px">👥 앱 공유하기</button>
@@ -393,6 +400,14 @@
 
     <button class="big-btn" id="setClose">저장하고 닫기</button>
     <p class="copy">© 2026 Hanbat.Timothy. All rights reserved.</p>
+  </div>
+</div>
+
+<!-- 이미지 보기: 새 기능 알림, 사용 설명서 -->
+<div class="modal" id="imgModal">
+  <div class="sheet img-sheet">
+    <div class="img-scroll" id="imgScroll"><img id="imgView" alt=""></div>
+    <div class="img-foot" id="imgFoot"></div>
   </div>
 </div>
 
@@ -935,6 +950,26 @@
     saveCafes(list.filter((x) => x.id !== id));
     if (S.cafeId === id) { S.cafeId = null; saveLocal(); }
     render(); renderCafes();
+  }
+
+  // 새 기능 알림(앱을 열면 한 번) · 사용 설명서 (설정에서)
+  const NEWS_VER = '2026-11-ai-cafes', NEWS_KEY = 'groupCafeOrder.news';
+  function showImage(kind) {
+    const news = kind === 'news';
+    $('imgView').src = news ? 'whatsnew.jpg' : 'manual.jpg';
+    $('imgView').alt = news ? '새로 생긴 기능: AI 앱으로 메뉴판 읽기, 자주 가는 카페 메뉴 저장' : '사용 설명서: 준비하기, 링크 보내기, 각자 고르기, 주문하기, 나눠주기';
+    $('imgFoot').innerHTML = news
+      ? '<button class="big-btn ghost" id="openManual">📖 사용 설명서</button><button class="big-btn" id="imgClose">확인</button>'
+      : '<button class="big-btn" id="imgClose">닫기</button>';
+    $('imgScroll').scrollTop = 0;
+    $('snack').classList.remove('on');
+    $('imgModal').classList.add('on');
+    if (news) { try { localStorage.setItem(NEWS_KEY, NEWS_VER); } catch (e) {} }
+  }
+  function maybeShowNews() {
+    if (GUEST) return;
+    let seen = ''; try { seen = localStorage.getItem(NEWS_KEY) || ''; } catch (e) { return; }
+    if (seen !== NEWS_VER && !document.querySelector('.modal.on')) showImage('news');
   }
 
   // 기능 제안 보내기 (Web3Forms → 관리자 메일)
@@ -1809,6 +1844,9 @@
       }
       case 'resetMenu': if (confirm('기본 메뉴로 되돌릴까요? (모은 주문은 유지돼요)')) { S.cafeId = null; S.menu = DEFAULT_MENU.slice(); pushMenu(); } break;
       case 'cafeOpen': openCafes('list'); break;
+      case 'openManual': $('setModal').classList.remove('on'); showImage('manual'); break;
+      case 'openNews': $('setModal').classList.remove('on'); showImage('news'); break;
+      case 'imgClose': $('imgModal').classList.remove('on'); break;
       case 'cafeSave': saveCafe(); break;
       case 'cafeClose': $('cafeModal').classList.remove('on'); break;
       case 'scanMenu': case 'scanAgain': $('scanModal').classList.remove('on'); openPicker(); break;
@@ -1875,6 +1913,7 @@
   if (isShared()) listen();
   if (GUEST) statOnce('guestOpens', params.get('r')); else statOnce('hostDevices');
   resumeAiPaste();
+  setTimeout(maybeShowNews, 600);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) resumeAiPaste(); });
 
   // 홈 화면 앱으로 빨리 열리게 (지원하는 브라우저에서만)
