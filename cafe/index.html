@@ -233,6 +233,13 @@
   .fb textarea:focus, .fb input:focus { outline: none; border-color: var(--brand); }
   .fb input[type=text] { font-size: 16px !important; padding: 10px 14px !important; margin-top: 8px; }
   .fb .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+  /* 저장한 카페 */
+  .cafe-row { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+  .cafe-row .pick { flex: 1; text-align: left; padding: 12px 2px; min-width: 0; }
+  .cafe-row .pick b { display: block; font-size: 18px; word-break: keep-all; }
+  .cafe-row .pick small { display: block; font-size: 13px; color: var(--sub); margin-top: 2px; }
+  .cafe-row .now { font-size: 12px; font-weight: 800; color: var(--ok); background: var(--ok-bg); border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
+  .cafe-row .del { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); font-size: 14px; color: var(--danger); flex: none; }
   .copy { text-align: center; font-size: 12px; color: var(--sub); margin-top: 18px; }
   .scan-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
   .scan-row input[type=checkbox] { width: 26px; height: 26px; accent-color: var(--brand); flex: none; }
@@ -377,6 +384,14 @@
 
     <button class="big-btn" id="setClose">저장하고 닫기</button>
     <p class="copy">© 2026 Hanbat.Timothy. All rights reserved.</p>
+  </div>
+</div>
+
+<!-- 저장한 카페 메뉴 불러오기 / 저장하기 -->
+<div class="modal" id="cafeModal">
+  <div class="sheet">
+    <h2 id="cafeTitle">카페 메뉴 불러오기</h2>
+    <div id="cafeBody"></div>
   </div>
 </div>
 
@@ -557,8 +572,21 @@
     S.orders = S.orders.filter((x) => x.id !== id); saveLocal(); render();
     if (isShared()) { try { await api('DELETE', '/orders/' + id); } catch (e) { toast('지우지 못했어요.'); refetch(); } }
   }
+  // ---------- 자주 가는 카페 메뉴 저장 (이 폰에만) ----------
+  const CAFES_KEY = 'groupCafeOrder.cafes';
+  const loadCafes = () => load(CAFES_KEY, []);
+  const saveCafes = (list) => store(CAFES_KEY, list.slice(0, 30));
+  const curCafe = () => (S.cafeId ? loadCafes().find((c) => c.id === S.cafeId) : null);
+  const copyMenu = (m) => m.map((x) => Object.assign({}, x));
+  // 불러온 카페 메뉴를 고치면 저장본도 함께 고쳐요
+  function syncCafe() {
+    if (GUEST || !S.cafeId) return;
+    const list = loadCafes(), c = list.find((x) => x.id === S.cafeId);
+    if (!c) { S.cafeId = null; return; }
+    c.menu = copyMenu(S.menu); c.used = Date.now(); saveCafes(list);
+  }
   async function pushMenu() {
-    saveLocal(); render();
+    syncCafe(); saveLocal(); render();
     if (isShared() && !GUEST) { try { await api('PUT', '/menu', S.menu); } catch (e) { toast('메뉴를 서버에 올리지 못했어요.'); } }
   }
 
@@ -691,13 +719,16 @@
          <p class="hint" style="margin:0">단톡방에 링크를 보내면 각자 음료를 누르고 이름을 남겨요. 로그인은 필요 없어요.</p>
          <button class="big-btn" id="startRoom">단톡방에 링크 보내기</button>`;
 
-    const fresh = isDefaultMenu();
+    const cafes = loadCafes(), cur = curCafe(), fresh = isDefaultMenu() && !cur;
     $('menuBar').classList.toggle('fresh', fresh);
     $('menuBar').innerHTML = fresh
-      ? `<div class="info">📷 이 카페 메뉴로 바꿔 볼까요?<small>메뉴판을 찍으면 메뉴가 자동으로 들어가요 (지금은 기본 메뉴)</small></div>
-         <button class="main" id="scanMenu">메뉴판 찍기</button>`
-      : `<div class="info">📋 메뉴 ${S.menu.length}개<small>메뉴판이 바뀌면 다시 찍어 주세요</small></div>
-         <button id="scanMenu">📷 다시 찍기</button><button id="editMenu" aria-label="메뉴 고치기">✏️</button>`;
+      ? (cafes.length
+        ? `<div class="info">☕ 어느 카페에 가세요?<small>저장한 카페 ${cafes.length}곳 · 처음 가는 곳은 메뉴판을 찍어 주세요</small></div>
+           <button class="main" id="cafeOpen">불러오기</button><button id="scanMenu" aria-label="메뉴판 찍기">📷</button>`
+        : `<div class="info">📷 이 카페 메뉴로 바꿔 볼까요?<small>메뉴판을 찍으면 메뉴가 자동으로 들어가요 (지금은 기본 메뉴)</small></div>
+           <button class="main" id="scanMenu">메뉴판 찍기</button>`)
+      : `<div class="info">📋 ${cur ? esc(cur.name) : '메뉴'} · ${S.menu.length}개<small>${cur ? '저장된 카페 메뉴예요 · 고치면 자동 저장' : '아직 저장하지 않은 메뉴예요'}</small></div>
+         <button id="cafeOpen">${cur || cafes.length ? '불러오기' : '저장'}</button><button id="scanMenu" aria-label="메뉴판 다시 찍기">📷</button><button id="editMenu" aria-label="메뉴 고치기">✏️</button>`;
     $('grid').innerHTML = gridHtml(true);
 
     const gs = groups();
@@ -814,6 +845,56 @@
     if (o.by === 'guest' && !confirm(`${o.name || '이름 없는 분'}님이 링크로 주문한 음료예요. 지울까요?`)) return;
     return removeOrder(o.id);
   }
+  // 카페 메뉴 창: mode 'list' (불러오기 + 저장) / 'save' (메뉴판을 읽은 직후 저장 권하기)
+  let cafeMode = 'list';
+  function openCafes(mode) { cafeMode = mode || 'list'; $('snack').classList.remove('on'); renderCafes(); $('cafeModal').classList.add('on'); if (cafeMode === 'save') setTimeout(() => $('cafeName').focus(), 80); }
+  function renderCafes() {
+    const list = loadCafes().sort((a, b) => b.used - a.used), cur = curCafe();
+    const day = (t) => { const d = new Date(t); return `${d.getMonth() + 1}월 ${d.getDate()}일`; };
+    const saveBox = `
+      <input type="text" id="cafeName" maxlength="30" placeholder="예: 컴포즈커피 대전원내점" value="${cur ? esc(cur.name) : ''}" autocomplete="off" style="margin-top:8px">
+      <button class="big-btn" id="cafeSave">💾 지금 메뉴(${S.menu.length}개) 저장</button>`;
+    if (cafeMode === 'save') {
+      $('cafeTitle').textContent = '이 메뉴를 저장해 둘까요?';
+      $('cafeBody').innerHTML = `<p class="hint">카페 이름을 적어 두면, 다음에 이 카페에 올 때 사진 없이 바로 불러올 수 있어요.</p>${saveBox}
+        <button class="big-btn ghost" id="cafeClose">나중에</button>`;
+      return;
+    }
+    $('cafeTitle').textContent = '카페 메뉴 불러오기';
+    $('cafeBody').innerHTML = (list.length
+      ? `<div>${list.map((c) => `<div class="cafe-row"><button class="pick" data-cafe="${c.id}"><b>${esc(c.name)}${cur && cur.id === c.id ? '<span class="now">지금 메뉴</span>' : ''}</b><small>메뉴 ${c.menu.length}개 · ${day(c.used)}</small></button><button class="del" data-cafedel="${c.id}" aria-label="${esc(c.name)} 지우기">지우기</button></div>`).join('')}</div>`
+      : '<p class="hint">아직 저장한 카페가 없어요. 메뉴판을 찍어 메뉴를 넣은 뒤 저장해 두면, 다음부터 사진 없이 바로 불러올 수 있어요.</p>')
+      + `<p class="sec">${cur ? '지금 메뉴 다시 저장 (이름을 바꾸면 새로 저장)' : '지금 메뉴를 카페 이름으로 저장'}</p>${saveBox}
+         <button class="big-btn ghost" id="cafeClose">닫기</button>`;
+  }
+  function saveCafe() {
+    const name = $('cafeName').value.trim();
+    if (!name) { $('cafeName').focus(); toast('카페 이름을 적어 주세요'); return; }
+    const list = loadCafes();
+    let c = list.find((x) => x.name === name);
+    if (c) { c.menu = copyMenu(S.menu); c.used = Date.now(); }
+    else { c = { id: 'c' + rid(8), name, menu: copyMenu(S.menu), used: Date.now() }; list.unshift(c); }
+    saveCafes(list); S.cafeId = c.id; saveLocal(); render();
+    $('cafeModal').classList.remove('on');
+    toast(`'${name}' 메뉴를 저장했어요`);
+  }
+  function useCafe(id) {
+    const list = loadCafes(), c = list.find((x) => x.id === id); if (!c) return;
+    if (S.orders.length && S.cafeId !== id && !confirm('지금 모은 주문이 있어요. 메뉴를 바꾸면 새 메뉴에 없는 음료는 "(삭제된 메뉴)"로 보여요. 바꿀까요?')) return;
+    c.used = Date.now(); saveCafes(list);
+    S.menu = copyMenu(c.menu); S.cafeId = id;
+    pushMenu();
+    $('cafeModal').classList.remove('on');
+    toast(`'${c.name}' 메뉴를 불러왔어요`);
+  }
+  function deleteCafe(id) {
+    const list = loadCafes(), c = list.find((x) => x.id === id); if (!c) return;
+    if (!confirm(`'${c.name}' 메뉴를 지울까요?\n(지금 화면의 메뉴는 그대로예요)`)) return;
+    saveCafes(list.filter((x) => x.id !== id));
+    if (S.cafeId === id) { S.cafeId = null; saveLocal(); }
+    render(); renderCafes();
+  }
+
   // 기능 제안 보내기 (Web3Forms → 관리자 메일)
   async function sendFeedback() {
     const msg = $('fbMsg').value.trim();
@@ -987,10 +1068,42 @@
     if (out.length > 1 && out[out.length - 1].length === 1 && !/[차티]/.test(out[out.length - 1])) out.pop();
     return out.join(' ');
   }
+  // 카페 메뉴에 자주 나오는 낱말로 비슷하게 잘못 읽힌 글자를 바로잡아요 (조코→초코, 홍자→홍차 …)
+  const MENU_VOCAB = ['아메리카노', '에스프레소', '카페', '라떼', '카푸치노', '바닐라', '헤이즐넛', '카라멜', '마끼아또', '모카', '돌체', '흑당', '달고나', '아인슈페너', '더치', '콜드브루', '디카페인',
+    '곡물', '고구마', '초코', '더블', '쿠키', '그린티', '녹차', '말차', '민트', '오레오', '밀크', '밀크티', '후르츠', '딸기', '망고', '블루베리', '키위', '복숭아', '오렌지', '당근', '샤인머스캣', '케일', '자몽', '레몬', '청포도', '유자',
+    '주스', '스무디', '요거트', '에이드', '스페셜', '유기농', '허브티', '홍차', '과일', '블랙티', '허니', '프라페', '자바칩', '리얼', '쉐이크', '플레인', '캔디소다', '팥절미', '커피', '아이스티', '토피넛', '시나몬', '연유', '크림', '라임', '패션후르츠', '캐모마일', '페퍼민트', '얼그레이', '루이보스', '히비스커스', '생강', '대추', '쌍화', '오미자', '매실', '수박', '파인애플', '바나나', '피스타치오'];
+  const LOOKALIKE = { 조: '초', 자: '차', 팔: '팥', 승: '숭', 렘: '렌', 사: '샤', 켓: '캣', 폐: '페', 찔: '딸', 떄: '떼', 때: '떼', 테: '떼', 쥬: '주', 놀: '돌', 똥: '농', 미: '이', 가: '카', 일: '밀', 빌: '밀' };
+  // 사전 낱말들로만 이루어졌는지 (녹차+라떼 → 이미 올바른 이름이니 건드리지 않아요)
+  function isVocabWord(w) {
+    const ok = [true];
+    for (let i = 1; i <= w.length; i++) { ok[i] = false; for (const v of MENU_VOCAB) if (i >= v.length && ok[i - v.length] && w.slice(i - v.length, i) === v) { ok[i] = true; break; } }
+    return ok[w.length];
+  }
+  function fixMenuWords(n) {
+    const parts = n.split(' ');
+    n = parts.map((w) => {
+      for (const v of MENU_VOCAB.slice().sort((a, b) => b.length - a.length)) {
+        const L = v.length;
+        for (let i = 0; i + L <= w.length; i++) {
+          const seg = w.slice(i, i + L);
+          if (seg === v || isVocabWord(seg)) continue;
+          const diff = [...seg].map((c, k) => [c, v[k]]).filter(([a, b]) => a !== b);
+          // 한 글자만 다르거나(긴 낱말), 닮은 글자끼리만 다르면 바꿔요
+          if ((diff.length === 1 && L >= 4) || (diff.length >= 1 && diff.length <= 2 && diff.every(([a, b]) => LOOKALIKE[a] === b))) w = w.slice(0, i) + v + w.slice(i + L);
+        }
+      }
+      return w;
+    }).join(' ');
+    // 맨 앞 한 글자가 빠진 경우 (구마라떼 → 고구마라떼, 페셜에이드 → 스페셜에이드)
+    for (const v of MENU_VOCAB) {
+      if (v.length >= 3 && n.startsWith(v.slice(1)) && !n.startsWith(v) && !MENU_VOCAB.some((x) => x.length >= 2 && n.startsWith(x))) { n = v[0] + n; break; }
+    }
+    return n;
+  }
   function finalizeItems(items) {
     const seen = new Set(), out = [];
     for (const it of items) {
-      const name = glueSyllables((it.name || '').replace(/\s+/g, ' ').trim());
+      const name = fixMenuWords(glueSyllables((it.name || '').replace(/\s+/g, ' ').trim()));
       const k = name.replace(/\s/g, '');
       if (k.length < 2 || k.length > 16 || seen.has(k) || SKIP_WORDS.test(k)) continue;
       seen.add(k);
@@ -1139,14 +1252,131 @@
     g.putImageData(id, 0, 0);
     return c;
   }
+  // 가격 글자 → 원 (3.5 → 3500, 4,500 → 4500)
+  function priceOf(t) {
+    t = String(t).replace(/[원₩\s]/g, '');
+    let m = t.match(/^(\d{1,2})[.,·](\d)$/);
+    if (m) return (+m[1] * 10 + +m[2]) * 100;
+    m = t.match(/^(\d{1,2})[,.]?(\d{3})$/);
+    if (m) { const v = +(m[1] + m[2]); if (v >= 500 && v <= 50000) return v; }
+    return 0;
+  }
+  // 사진을 키우고 흑백으로 대비를 높여요 (작은 글씨도 읽히게)
+  function grayCanvas(src) {
+    const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+    const g = c.getContext('2d'); g.drawImage(src, 0, 0);
+    const id = g.getImageData(0, 0, c.width, c.height), d = id.data, hist = new Uint32Array(256);
+    for (let i = 0; i < d.length; i += 4) { const v = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 | 0; d[i] = v; hist[v]++; }
+    const n = c.width * c.height; let lo = 0, hi = 255, acc = 0;
+    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc > n * 0.01) { lo = v; break; } }
+    acc = 0; for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc > n * 0.01) { hi = v; break; } }
+    const k = 255 / Math.max(1, hi - lo), W = c.width, Hh = c.height;
+    const v = new Float32Array(n);
+    for (let p = 0, i = 0; p < n; p++, i += 4) v[p] = Math.max(0, Math.min(255, (d[i] - lo) * k));
+    // 선명하게 (언샤프 마스크): 흐린 사진과의 차이를 키워 글자 테두리를 또렷하게
+    const r = 2, tmp = new Float32Array(n), blur = new Float32Array(n);
+    for (let y = 0; y < Hh; y++) { let acc = 0; const o = y * W; for (let x = -r; x <= r; x++) acc += v[o + Math.min(W - 1, Math.max(0, x))];
+      for (let x = 0; x < W; x++) { tmp[o + x] = acc / (2 * r + 1); acc += v[o + Math.min(W - 1, x + r + 1)] - v[o + Math.max(0, x - r)]; } }
+    for (let x = 0; x < W; x++) { let acc = 0; for (let y = -r; y <= r; y++) acc += tmp[Math.min(Hh - 1, Math.max(0, y)) * W + x];
+      for (let y = 0; y < Hh; y++) { blur[y * W + x] = acc / (2 * r + 1); acc += tmp[Math.min(Hh - 1, y + r + 1) * W + x] - tmp[Math.max(0, y - r) * W + x]; } }
+    for (let p = 0, i = 0; p < n; p++, i += 4) {
+      const diff = v[p] - blur[p];
+      const o = Math.abs(diff) > 2 ? Math.max(0, Math.min(255, v[p] + diff * 1.2)) : v[p];
+      d[i] = d[i + 1] = d[i + 2] = o;
+    }
+    g.putImageData(id, 0, 0); return c;
+  }
+  // 글자 위치로 메뉴를 찾아요: 가격마다 같은 줄 왼쪽 이름, 없으면 바로 위 이름과 짝지어요
+  function layoutParse(words, imgW) {
+    const H = (w) => w.y1 - w.y0, cy = (w) => (w.y0 + w.y1) / 2, cx = (w) => (w.x0 + w.x1) / 2;
+    const ws = words.map((w) => ({ t: w.text, c: w.confidence, x0: w.bbox.x0, y0: w.bbox.y0, x1: w.bbox.x1, y1: w.bbox.y1 }));
+    const toks = ws.filter((w) => /[가-힣]/.test(w.t)).sort((a, b) => cy(a) - cy(b));
+    // 같은 줄끼리 묶고, 왼쪽부터 가까운 글자를 이어 붙여요
+    const rows = [];
+    for (const w of toks) {
+      const R = rows.find((r) => Math.abs(cy(w) - r.cy) < Math.max(H(w), r.h) * 0.4);
+      if (R) R.ws.push(w); else rows.push({ cy: cy(w), h: H(w), ws: [w] });
+    }
+    const segs = [];
+    for (const R of rows) {
+      const list = R.ws.sort((a, b) => a.x0 - b.x0);
+      let cur = [list[0]];
+      const flush = () => segs.push({ ws: cur, x0: cur[0].x0, x1: cur[cur.length - 1].x1, y0: Math.min(...cur.map((w) => w.y0)), y1: Math.max(...cur.map((w) => w.y1)), h: cur.reduce((a, w) => a + H(w), 0) / cur.length });
+      for (const w of list.slice(1)) {
+        if (w.x0 - cur[cur.length - 1].x1 < Math.max(H(w), H(cur[cur.length - 1])) * 0.6) cur.push(w); else { flush(); cur = [w]; }
+      }
+      flush();
+    }
+    if (!segs.length) return [];
+    const hs = segs.map((s) => s.h).sort((a, b) => a - b), medH = hs[hs.length >> 1];
+    const prices = ws.map((w) => Object.assign({ v: priceOf(w.t) }, w)).filter((w) => w.v);
+    const hasPriceBelow = (s) => prices.some((q) => s.y1 <= q.y0 + H(q) * 0.3 && q.y0 - s.y1 < H(q) * 3.2 && s.x0 - H(q) < cx(q) && cx(q) < s.x1 + H(q));
+    const SUFFIX = /^(프라페|밀크쉐이크|쉐이크|라떼|주스|에이드|스무디|티|프라푸치노|블렌디드)$/;
+    const items = [];
+    for (const p of prices) {
+      const ph = H(p), pc = cx(p);
+      // 같은 줄의 이웃 가격까지의 중간을 경계로 (여러 칸이 한 줄로 붙어 읽혀도 나눠요)
+      const same = prices.filter((q) => q !== p && Math.abs(cy(q) - cy(p)) < ph * 0.6);
+      const lb = Math.max(-Infinity, ...same.filter((q) => cx(q) < pc).map((q) => (cx(q) + pc) / 2));
+      const rb = Math.min(Infinity, ...same.filter((q) => cx(q) > pc).map((q) => (cx(q) + pc) / 2));
+      const textIn = (s, a, b) => s.ws.filter((w) => cx(w) > a && cx(w) < b).map((w) => w.t.replace(/[^가-힣]/g, '')).join('');
+      // 이름은 통째로 쓰되, 옆 메뉴 이름까지 한 줄로 붙어 읽혔으면(다른 가격이 그 아래에 있으면) 경계에서 잘라요
+      const textFor = (s) => (same.some((q) => cx(q) > s.x0 && cx(q) < s.x1) ? textIn(s, lb, rb) : textIn(s, -Infinity, Infinity));
+      let name = '';
+      // (1) 같은 줄 왼쪽 (예: "에이드 3.5", "아메리카노 …… 4,500")
+      //     같은 높이이거나 조금 위(영어 설명 줄과 가격이 나란한 메뉴판), 단 아래에 자기 가격이 있는 이름(격자형의 옆 칸)은 빼요
+      const leftEdge = Math.max(-Infinity, ...prices.filter((q) => q !== p && q.x1 <= p.x0 && q.y1 > p.y0 - ph * 1.8 && q.y0 < p.y1).map((q) => q.x1));
+      const left = segs.filter((s) => s.x1 <= p.x0 + ph * 0.5 && s.x0 > leftEdge && p.x0 - s.x1 < imgW * 0.45 && s.h >= medH * 0.7
+          && s.y0 < p.y1 && s.y1 > p.y0 - ph * 1.8 && !hasPriceBelow(s))
+        .sort((a, b) => ((p.x0 - a.x1) + Math.abs(cy(a) - cy(p)) * 2) - ((p.x0 - b.x1) + Math.abs(cy(b) - cy(p)) * 2))[0];
+      if (left) name = textIn(left, leftEdge, p.x0 + ph * 0.5);
+      // (2) 바로 위 (예: 사진 아래 이름, 그 아래 가격)
+      if (name.length < 2) {
+        const above = segs.filter((s) => s.y1 <= p.y0 + ph * 0.3 && p.y0 - s.y1 < ph * 3.2 && s.x0 - ph < pc && pc < s.x1 + ph && textFor(s).length)
+          .sort((a, b) => ((p.y0 - a.y1) + Math.abs(pc - cx(a)) * 0.3) - ((p.y0 - b.y1) + Math.abs(pc - cx(b)) * 0.3));
+        const parts = [];
+        let last = null;
+        for (const s of above) {
+          const t = textFor(s);
+          const small = s.h < medH * 0.75;
+          if (last && last.y0 - s.y1 > last.h * 1.2) break;       // 떨어져 있으면 다른 메뉴
+          if (small && !SUFFIX.test(t)) continue;                  // 작은 설명 글씨(딸기·망고…)는 건너뛰기
+          parts.unshift(t); last = s;
+          if (!SUFFIX.test(t) && parts.length >= 2) break;         // 두 줄 이름까지만
+          if (!SUFFIX.test(t) && !small) {
+            // 바로 위에 붙은 큰 글씨 한 줄이 더 있으면 두 줄 이름 (예: 디카페인 / 더치커피)
+            const up = segs.find((u) => u !== s && s.y0 - u.y1 >= 0 && s.y0 - u.y1 < s.h * 0.8 && u.h >= medH * 0.75 && Math.abs(cx(u) - cx(s)) < s.h * 1.5);
+            if (up) parts.unshift(textFor(up));
+            break;
+          }
+        }
+        name = parts.join('');
+      }
+      if (name.length >= 2) items.push({ name, t: guessTemp(name), price: p.v });
+    }
+    return items;
+  }
   async function ocrRead(files, step) {
     if (!window.Tesseract) await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
     if (!ocrWorker) {
       ocrWorker = await Tesseract.createWorker(params.get('ocr') ? params.get('ocr').split('+') : ['kor', 'eng'], 1, {
         logger: (m) => { if (/load|init/i.test(m.status)) step('글자 인식 도구를 준비하고 있어요…', (m.progress || 0) * 0.2); },
       });
-      await ocrWorker.setParameters({ tessedit_pageseg_mode: '6', preserve_interword_spaces: '1' });
     }
+    // 1) 사진 전체를 크게 키워 흩어진 글자까지 찾고, 글자 위치로 이름과 가격을 짝지어요
+    await ocrWorker.setParameters({ tessedit_pageseg_mode: '11', preserve_interword_spaces: '1' });
+    const found = [];
+    for (let i = 0; i < files.length; i++) {
+      step(`메뉴판을 읽고 있어요… (${i + 1}/${files.length})`, 0.2 + (i / files.length) * 0.6);
+      const cv = grayCanvas(await toCanvas(files[i], 3000));
+      const { data } = await ocrWorker.recognize(cv, {}, { blocks: true });
+      const words = [];
+      for (const b of data.blocks || []) for (const p of b.paragraphs) for (const l of p.lines) words.push(...(l.words || []));
+      found.push(...layoutParse(words, cv.width));
+    }
+    if (found.length >= 4) return finalizeItems(found);
+    // 2) 거의 못 찾았으면 예전 방식(한 줄에 이름과 가격)으로 한 번 더
+    await ocrWorker.setParameters({ tessedit_pageseg_mode: '6', preserve_interword_spaces: '1' });
     const lines = [];
     let done = 0, jobs = [];
     for (const f of files) {
@@ -1300,10 +1530,12 @@
       .map((r) => ({ id: 'u' + rid(6), name: r.querySelector('input[type=text]').value.trim(), t: r.querySelector('select').value, price: +r.dataset.price || 0 }))
       .filter((m) => m.name);
     if (!picked.length) return toast('선택된 메뉴가 없어요');
+    if (replace) S.cafeId = null;   // 새 메뉴판은 아직 저장 전
     S.menu = replace ? picked : S.menu.concat(picked);
     pushMenu();
     $('scanModal').classList.remove('on');
-    toast(`메뉴 ${picked.length}개를 넣었어요`);
+    if (S.cafeId) toast(`메뉴 ${picked.length}개를 더해서 '${curCafe().name}'에 저장했어요`);
+    else openCafes('save');
   }
 
   // ---------- 이벤트 ----------
@@ -1315,6 +1547,8 @@
       if (!GUEST && longPressed) { longPressed = false; return; }   // 길게 누른 뒤 손을 뗄 때 생기는 클릭은 무시
       return GUEST ? openSheet({ mode: 'guest', key: d.add }) : hostAdd(d.add);
     }
+    if (d.cafe) return useCafe(d.cafe);
+    if (d.cafedel) return deleteCafe(d.cafedel);
     if (d.qplus) { const [menuId, temp] = d.qplus.split('|'); addOrder({ menuId, temp, by: 'host' }).catch(() => {}); return; }
     if (d.qminus) return removeLastOf(d.qminus);
     if (d.qdel) {
@@ -1390,7 +1624,10 @@
         S.menu.push({ id: 'u' + rid(6), name, t }); $('newMenu').value = ''; pushMenu();
         toast(`'${name}' 메뉴를 추가했어요`); break;
       }
-      case 'resetMenu': if (confirm('기본 메뉴로 되돌릴까요? (모은 주문은 유지돼요)')) { S.menu = DEFAULT_MENU.slice(); pushMenu(); } break;
+      case 'resetMenu': if (confirm('기본 메뉴로 되돌릴까요? (모은 주문은 유지돼요)')) { S.cafeId = null; S.menu = DEFAULT_MENU.slice(); pushMenu(); } break;
+      case 'cafeOpen': openCafes('list'); break;
+      case 'cafeSave': saveCafe(); break;
+      case 'cafeClose': $('cafeModal').classList.remove('on'); break;
       case 'scanMenu': case 'scanAgain': $('scanModal').classList.remove('on'); openPicker(); break;
       case 'camShot': $('camFile').value = ''; $('camFile').click(); break;
       case 'galleryPick': $('pickModal').classList.remove('on'); $('scanFile').value = ''; $('scanFile').click(); break;
@@ -1427,6 +1664,7 @@
   $('camFile').addEventListener('change', (e) => { const f = (e.target.files || [])[0]; if (f) { shots.push(f); renderPicker(); } });
   $('scanFile').addEventListener('change', (e) => { const fs = [...(e.target.files || [])].slice(0, 4); if (fs.length) scanPhotos(fs); });
   $('nameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sheetOk(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'cafeName') saveCafe(); });
   $('titleEditInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') closeTitle(true); if (e.key === 'Escape') closeTitle(false); });
   // 다른 곳을 누르면 저장 (저장 버튼을 누른 경우는 버튼이 처리)
   $('titleEditInput').addEventListener('blur', () => setTimeout(() => closeTitle(true), 150));
