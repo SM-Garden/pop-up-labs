@@ -1580,7 +1580,7 @@
         <p class="sec" style="margin-top:0">① 부탁 문구를 복사하고 AI 앱 열기</p>
         <button class="big-btn" id="aiGemini" style="margin-top:8px">📋 문구 복사하고 Gemini 열기</button>
         <button class="big-btn ghost" id="aiCopy" style="padding:10px;font-size:15px">문구만 복사 (ChatGPT 등 다른 AI 앱)</button>
-        <p class="hint" style="margin-top:8px">AI 앱에서 <b>메뉴판 사진을 올리고</b>, 복사한 문구를 <b>붙여넣어 보내요</b>. 표가 나오면 <b>표를 통째로 복사</b>해서 돌아오세요.</p>
+        <p class="hint" style="margin-top:8px">AI 앱에서 <b>메뉴판 사진을 올리고</b>, 복사한 문구를 <b>붙여넣어 보내요</b>. 표가 나오면 <b>표 오른쪽 위의 [복사] 버튼</b>을 눌러 돌아오세요.</p>
         <p class="sec">② AI가 만든 표 붙여넣기</p>
         <div class="fb"><textarea id="aiText" placeholder="여기에 AI가 만든 표를 붙여넣어요" style="margin-top:8px;min-height:120px"></textarea></div>
         <div class="two"><button class="big-btn ghost" id="aiClip">📋 붙여넣기</button><button class="big-btn" id="aiParse">메뉴로 만들기</button></div>
@@ -1607,9 +1607,12 @@
   }
   // AI 앱에 보낼 부탁 문구
   const AI_PROMPT = `첨부한 카페 메뉴판 사진에서 주문할 수 있는 메뉴를 모두 찾아, 아래 형식의 표로만 답해 주세요. 다른 설명은 쓰지 마세요.
+표 전체를 꼭 코드 블록(\`\`\`) 하나 안에 넣어 주세요. 복사 버튼으로 한 번에 복사하려고 해요.
 
+\`\`\`
 | 이름 | 온도 | 가격 | 옵션 |
 |---|---|---|---|
+\`\`\`
 
 - 이름: 한글 메뉴 이름만 (영어 이름, 설명 제외). 메뉴판에 적힌 그대로.
 - 온도: '아이스+따뜻', '아이스만', '따뜻만', '구분없음' 중 하나. ONLY ICE 표시나 에이드·스무디·주스·프라페·쉐이크는 '아이스만', ONLY HOT은 '따뜻만', 디저트·빵은 '구분없음'.
@@ -1638,6 +1641,7 @@
     const items = [];
     let col = null;   // 머리 줄에서 찾은 칸 위치 { name, price, temp }
     for (let line of String(text).split(/\r?\n/)) {
+      if (/^\s*(```|~~~)/.test(line)) continue;                     // 코드 블록 시작·끝 줄
       line = line.replace(/\*\*|__|`/g, '').trim();
       if (!line || /^\|?\s*:?-{2,}/.test(line)) continue;                       // 표의 구분 줄
       let cells = line.includes('|') ? line.replace(/^\||\|$/g, '').split('|') : line.includes('\t') ? line.split('\t') : line.split(/\s*[,·]\s+|\s+[-–:]\s+/);
@@ -1683,7 +1687,7 @@
     const text = $('aiText').value.trim();
     if (!text) { $('aiText').focus(); toast('AI가 만든 표를 붙여넣어 주세요'); return; }
     const items = parsePastedMenu(text);
-    if (!items.length) { toast('메뉴를 찾지 못했어요. 표를 통째로 복사해서 붙여넣어 주세요'); return; }
+    if (!items.length) { toast('메뉴를 찾지 못했어요. AI 답의 [복사] 버튼으로 표를 통째로 복사해 주세요'); return; }
     try { localStorage.removeItem(AI_PENDING); } catch (e) {}
     $('pickModal').classList.remove('on');
     $('scanTitle').textContent = ''; $('scanModal').classList.add('on');
