@@ -28,6 +28,11 @@
             "price": {
               ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000"
             },
+            "opts": {
+              "$j": {
+                ".validate": "$j.matches(/^[0-9]$/) && newData.isString() && newData.val().length >= 1 && newData.val().length <= 15"
+              }
+            },
             "$other": {
               ".validate": false
             }
@@ -56,6 +61,9 @@
             },
             "by": {
               ".validate": "newData.isString() && newData.val().matches(/^(host|guest)$/)"
+            },
+            "opt": {
+              ".validate": "newData.isString() && newData.val().length <= 15"
             },
             "$other": {
               ".validate": false
