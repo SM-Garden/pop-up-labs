@@ -122,6 +122,7 @@
   .qlist .qi { display: flex; align-items: center; gap: 8px; padding: 10px 2px; border-bottom: 1px solid var(--line); }
   .qlist .qi span { flex: 1; font-size: 17px; font-weight: 700; word-break: keep-all; }
   .qlist .qi small { display: block; font-size: 13px; font-weight: 400; color: var(--sub); }
+  .qlist .qi button + button { margin-left: -2px; }
   .qlist .qi button { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); font-size: 14px; color: var(--danger); }
   .tap.ice { background: var(--ice-bg); color: var(--ice); }
   .tap.hot { background: var(--hot-bg); color: var(--hot); }
@@ -139,6 +140,11 @@
   .pm { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); font-size: 24px; line-height: 1; background: var(--bg); }
   .cnt { min-width: 44px; text-align: center; font-size: 24px; font-weight: 800; color: var(--brand); }
   .tag { display: inline-block; font-size: 13px; padding: 1px 7px; border-radius: 6px; margin-right: 4px; vertical-align: 2px; font-weight: 700; }
+  .drink .opts { display: block; font-size: 12px; font-weight: 500; color: var(--sub); margin-top: 2px; line-height: 1.35; word-break: keep-all; }
+  .opt { display: inline-block; font-size: 14px; font-weight: 800; padding: 1px 8px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); color: var(--brand); margin-left: 4px; vertical-align: 2px; }
+  #optQuick.need button { border-color: var(--danger); }
+  #optSec.need { color: var(--danger); }
+  #optSec.need::after { content: ' ← 하나 골라 주세요'; }
   .tag.ICE { background: var(--ice-bg); color: var(--ice); }
   .tag.HOT { background: var(--hot-bg); color: var(--hot); }
   .big-btn {
@@ -329,6 +335,8 @@
   <div class="sheet">
     <h2 id="nameTitle">누구 음료인가요?</h2>
     <input type="text" id="nameInput" placeholder="이름 (예: 김집사)" autocomplete="off" maxlength="20">
+    <p class="sec" id="optSec">맛 고르기 (꼭 골라 주세요)</p>
+    <div class="quick" id="optQuick"></div>
     <p class="sec">요청사항 (선택)</p>
     <div class="quick" id="noteQuick"></div>
     <div class="two" style="margin-top:14px">
@@ -355,7 +363,8 @@
     <p class="hint" style="margin-top:6px">키가 있으면 사진을 Google Gemini가 읽어서 메뉴만 골라 줘요. 무료로 받을 수 있고(SETUP.md 참고), 키는 이 폰에만 저장돼요. 키가 없으면 사진을 폰 안에서만 읽어요.</p>
 
     <p class="sec" id="menuSec">메뉴 하나씩 추가</p>
-    <input type="text" id="newMenu" placeholder="예: 자몽에이드" style="margin-top:8px" maxlength="30">
+    <input type="text" id="newMenu" placeholder="예: 에이드" style="margin-top:8px" maxlength="30">
+    <input type="text" id="newMenuOpts" placeholder="맛 (선택, 쉼표로: 자몽, 레몬, 유자)" style="margin-top:6px;font-size:16px" maxlength="120">
     <div class="seg" id="tempSeg">
       <button data-t="both" class="on">아이스+따뜻</button>
       <button data-t="ice">아이스만</button>
@@ -465,8 +474,14 @@
 
   const temps = (m) => (m.t === 'both' ? ['ICE', 'HOT'] : m.t === 'ice' ? ['ICE'] : m.t === 'hot' ? ['HOT'] : ['']);
   const menuById = (id) => S.menu.find((m) => m.id === id) || { name: '(삭제된 메뉴)' };
-  const keyOf = (o) => o.menuId + '|' + o.temp;
-  const drinkName = (menuId, temp) => (temp ? TEMP_LABEL[temp] + ' ' : '') + menuById(menuId).name;
+  // 맛(옵션): 메뉴에 opts(맛 목록), 주문에 opt(고른 맛). 같은 음료라도 맛이 다르면 따로 묶어요
+  const baseKey = (o) => o.menuId + '|' + o.temp;
+  const keyOf = (o) => baseKey(o) + (o.opt ? '|' + o.opt : '');
+  const optsOf = (menuId) => menuById(menuId).opts || [];
+  const drinkName = (menuId, temp, opt) => (temp ? TEMP_LABEL[temp] + ' ' : '') + menuById(menuId).name + (opt ? ` (${opt})` : '');
+  const optTag = (opt) => (opt ? ` <span class="opt">${esc(opt)}</span>` : '');
+  // "자몽, 레몬 / 유자" → ['자몽', '레몬', '유자'] (최대 10개, 각 15자)
+  const parseOpts = (str) => [...new Set(String(str || '').split(/[,/·、|]+|\s{2,}/).map((x) => x.replace(/[^가-힣a-zA-Z0-9 ]/g, '').trim()).filter((x) => x && x.length <= 15))].slice(0, 10);
   const tagHtml = (temp) => (temp ? `<span class="tag ${temp}">${temp === 'ICE' ? '아이스' : '따뜻'}</span>` : '');
 
   // ---------- Firebase Realtime Database (REST 방식, 로그인 없음) ----------
@@ -577,7 +592,7 @@
   const loadCafes = () => load(CAFES_KEY, []);
   const saveCafes = (list) => store(CAFES_KEY, list.slice(0, 30));
   const curCafe = () => (S.cafeId ? loadCafes().find((c) => c.id === S.cafeId) : null);
-  const copyMenu = (m) => m.map((x) => Object.assign({}, x));
+  const copyMenu = (m) => m.map((x) => Object.assign({}, x, x.opts ? { opts: x.opts.slice() } : {}));
   // 불러온 카페 메뉴를 고치면 저장본도 함께 고쳐요
   function syncCafe() {
     if (GUEST || !S.cafeId) return;
@@ -668,10 +683,13 @@
     S.menu.forEach((m) => temps(m).forEach((t) => order.push(m.id + '|' + t)));
     const map = new Map();
     S.orders.forEach((o) => { const k = keyOf(o); if (!map.has(k)) map.set(k, []); map.get(k).push(o); });
-    const rank = (k) => { const i = order.indexOf(k); return i < 0 ? 999 : i; };
+    const rank = (k) => {
+      const [menuId, temp, opt] = k.split('|'), i = order.indexOf(menuId + '|' + temp);
+      return (i < 0 ? 999 : i) + (opt ? (optsOf(menuId).indexOf(opt) + 2) / 100 : 0);
+    };
     return [...map.keys()].sort((a, b) => rank(a) - rank(b)).map((k) => {
-      const [menuId, temp] = k.split('|');
-      return { key: k, menuId, temp, items: map.get(k) };
+      const [menuId, temp, opt] = k.split('|');
+      return { key: k, menuId, temp, opt: opt || '', items: map.get(k) };
     });
   }
   // 메뉴에 가격이 있으면 예상 금액을 알려 줘요
@@ -688,7 +706,7 @@
   }
   function gridHtml(withCount) {
     const count = {};
-    S.orders.forEach((o) => { count[keyOf(o)] = (count[keyOf(o)] || 0) + 1; });
+    S.orders.forEach((o) => { count[baseKey(o)] = (count[baseKey(o)] || 0) + 1; });
     return S.menu.map((m) => {
       const btns = temps(m).map((t) => {
         const n = count[m.id + '|' + t] || 0;
@@ -696,7 +714,7 @@
         const lbl = t === 'ICE' ? '🧊<br>아이스' : t === 'HOT' ? '☕<br>따뜻' : withCount ? '+1' : '✔<br>선택';
         return `<button class="tap ${cls}" data-add="${m.id}|${t}"><span>${lbl}</span>${withCount ? `<span class="n ${n ? '' : 'zero'}">${n}</span>` : ''}</button>`;
       }).join('');
-      return `<div class="drink"><div class="nm">${esc(m.name)}</div><div class="btns">${btns}</div></div>`;
+      return `<div class="drink"><div class="nm">${esc(m.name)}${m.opts && m.opts.length ? `<small class="opts">${esc(m.opts.join(' · '))}</small>` : ''}</div><div class="btns">${btns}</div></div>`;
     }).join('');
   }
 
@@ -736,7 +754,7 @@
       ? `<div class="list">${gs.map((g) => {
           const notes = g.items.filter((o) => o.note).map((o) => o.note);
           const noteTxt = notes.length ? `<small>요청: ${esc(summarizeNotes(notes))}</small>` : '';
-          return `<div class="row"><div class="lbl">${tagHtml(g.temp)}${esc(menuById(g.menuId).name)}${noteTxt}</div>
+          return `<div class="row"><div class="lbl">${tagHtml(g.temp)}${esc(menuById(g.menuId).name)}${optTag(g.opt)}${noteTxt}</div>
             <button class="pm" data-minus="${g.key}">−</button><span class="cnt">${g.items.length}</span><button class="pm" data-plus="${g.key}">+</button></div>`;
         }).join('')}</div>`
       : `<div class="empty">아직 모은 음료가 없어요.<br>① 모으기에서 눌러 주세요.</div>`;
@@ -751,14 +769,14 @@
       ? gs.map((g) => {
           const done = g.items.every((o) => o.got);
           const cups = g.items.map((o, i) => `<button class="cup ${o.got ? 'got' : ''}" data-got="${o.id}">${o.name ? esc(o.name) : `${i + 1}번째 잔`}${o.note ? `<span class="note">${esc(o.note)}</span>` : ''}</button>`).join('');
-          return `<div class="group ${done ? 'done' : ''}"><h3><span>${tagHtml(g.temp)}${esc(menuById(g.menuId).name)} ${g.items.length}잔</span>
+          return `<div class="group ${done ? 'done' : ''}"><h3><span>${tagHtml(g.temp)}${esc(menuById(g.menuId).name)}${optTag(g.opt)} ${g.items.length}잔</span>
             ${done ? '<span style="color:var(--ok);font-size:15px">✔ 완료</span>' : `<button class="call" data-call="${g.key}">📣 부르기</button>`}</h3><div class="cups">${cups}</div></div>`;
         }).join('')
       : `<div class="empty">주문한 음료가 없어요.</div>`;
 
     if ($('qtyModal').classList.contains('on')) renderQty();
-    $('menuEdit').innerHTML = S.menu.map((m, i) => `<div class="menu-row"><span>${esc(m.name)} <small style="color:var(--sub);font-weight:400">${{ both: '아이스/따뜻', ice: '아이스', hot: '따뜻', none: '' }[m.t]}</small></span>
-      <button data-up="${i}" ${i ? '' : 'disabled'}>▲</button><button data-del="${m.id}" style="color:var(--danger)">삭제</button></div>`).join('');
+    $('menuEdit').innerHTML = S.menu.map((m, i) => `<div class="menu-row"><span>${esc(m.name)} <small style="color:var(--sub);font-weight:400">${{ both: '아이스/따뜻', ice: '아이스', hot: '따뜻', none: '' }[m.t]}</small>${m.opts && m.opts.length ? `<small style="display:block;color:var(--sub);font-weight:400">맛: ${esc(m.opts.join(', '))}</small>` : ''}</span>
+      <button data-opts="${m.id}">맛</button><button data-up="${i}" ${i ? '' : 'disabled'}>▲</button><button data-del="${m.id}" style="color:var(--danger)">삭제</button></div>`).join('');
   }
 
   // ---------- 참여자 화면 ----------
@@ -772,7 +790,7 @@
       : '마실 음료를 <b>한 번 누르고</b>, 이름만 적으면 끝이에요.';
     $('guestMine').innerHTML = mine.length
       ? `<div class="done-box"><div class="big">✅</div><h2>주문이 들어갔어요!</h2><p class="hint">음료가 나오면 이름을 불러 드릴게요.</p></div>
-         <div class="list mine">${mine.map((o) => `<div class="row"><div class="lbl">${tagHtml(o.temp)}${esc(menuById(o.menuId).name)}
+         <div class="list mine">${mine.map((o) => `<div class="row"><div class="lbl">${tagHtml(o.temp)}${esc(menuById(o.menuId).name)}${optTag(o.opt)}
             <small>${esc(o.name || '')}${o.note ? ' · ' + esc(o.note) : ''}</small></div>
             ${o.got ? '<span class="got-badge">받음 ✔</span>' : `<button data-cancel="${o.id}">취소</button>`}</div>`).join('')}</div>`
       : '';
@@ -780,20 +798,28 @@
   function setErr(msg) { if (GUEST) $('guestErr').innerHTML = msg ? `<div class="err">${esc(msg)}</div>` : ''; }
 
   // ---------- 이름 입력 시트 ----------
-  let sheet = null; // { mode: 'edit' | 'guest', id?, key }
+  let sheet = null; // { mode: 'edit' | 'guest' | 'hostadd', id?, key }
   function openSheet(opts) {
     sheet = opts;
     const [menuId, temp] = opts.key.split('|');
     const o = opts.id ? S.orders.find((x) => x.id === opts.id) : null;
-    const guest = opts.mode === 'guest';
-    $('nameTitle').textContent = guest ? `${drinkName(menuId, temp)} 주문할게요` : `${drinkName(menuId, temp)} — 누구 음료인가요?`;
+    const guest = opts.mode === 'guest', hostadd = opts.mode === 'hostadd';
+    $('nameTitle').textContent = guest ? `${drinkName(menuId, temp)} 주문할게요` : hostadd ? `${drinkName(menuId, temp)} — 맛을 골라 주세요` : `${drinkName(menuId, temp)} — 누구 음료인가요?`;
     $('nameInput').value = o ? o.name : guest ? G.name || '' : '';
-    $('nameInput').placeholder = guest ? '내 이름 (꼭 적어 주세요)' : '이름 (예: 김집사)';
+    $('nameInput').placeholder = guest ? '내 이름 (꼭 적어 주세요)' : '이름 (예: 김집사, 몰라도 돼요)';
     $('nameInput').style.borderColor = '';
-    $('nameOk').textContent = guest ? '주문하기' : '저장';
+    $('nameOk').textContent = guest ? '주문하기' : hostadd ? '한 잔 추가' : '저장';
+    renderOpts(menuId, o ? o.opt : '');
     renderNotes(o ? o.note : '');
     $('nameModal').classList.add('on');
-    if (!$('nameInput').value) setTimeout(() => $('nameInput').focus(), 50);
+    if (!$('nameInput').value && !hostadd && !optsOf(menuId).length) setTimeout(() => $('nameInput').focus(), 50);
+  }
+  function renderOpts(menuId, cur) {
+    const list = optsOf(menuId);
+    $('optSec').style.display = $('optQuick').style.display = list.length ? '' : 'none';
+    $('optQuick').classList.remove('need'); $('optSec').classList.remove('need');
+    $('optQuick').innerHTML = list.map((x) => `<button data-opt="${esc(x)}" class="${x === cur ? 'on' : ''}">${esc(x)}</button>`).join('');
+    $('optQuick').dataset.cur = list.includes(cur) ? cur : '';
   }
   function renderNotes(cur) {
     const on = (cur || '').split(', ').filter(Boolean);
@@ -803,12 +829,26 @@
   async function sheetOk() {
     const name = $('nameInput').value.trim();
     const note = $('noteQuick').dataset.cur || '';
+    const [menuId, temp] = sheet.key.split('|');
+    const opt = $('optQuick').dataset.cur || '';
+    const withOpt = (o) => (opt ? Object.assign(o, { opt }) : o);
+    if (optsOf(menuId).length && !opt && sheet.mode !== 'edit') {
+      $('optQuick').classList.add('need'); $('optSec').classList.add('need');
+      $('optSec').scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return;
+    }
+    if (sheet.mode === 'hostadd') {
+      $('nameModal').classList.remove('on');
+      if (navigator.vibrate) { try { navigator.vibrate(25); } catch (e) {} }
+      showSnack(`${drinkName(menuId, temp, opt)} +1`, true);
+      try { lastId = await addOrder(withOpt({ menuId, temp, name, note, by: 'host' })); } catch (e) {}
+      return;
+    }
     if (sheet.mode === 'guest') {
       if (!name) { $('nameInput').focus(); $('nameInput').style.borderColor = 'var(--danger)'; return; }
       $('nameOk').disabled = true;
-      const [menuId, temp] = sheet.key.split('|');
       try {
-        const id = await addOrder({ menuId, temp, name, note, by: 'guest' });
+        const id = await addOrder(withOpt({ menuId, temp, name, note, by: 'guest' }));
         G.name = name;
         const r = params.get('r'); G.mine[r] = (G.mine[r] || []).concat(id); store(GUEST_KEY, G);
         $('nameModal').classList.remove('on'); render(); window.scrollTo(0, 0);
@@ -817,13 +857,15 @@
       return;
     }
     $('nameModal').classList.remove('on');
-    patchOrder(sheet.id, { name, note });
+    patchOrder(sheet.id, opt ? { name, note, opt } : { name, note });
+    if (sheet.back === 'qty') openQty(qtyKey);
   }
 
   // ---------- 총무 동작 ----------
   let lastId = null, snackTimer = null;
   async function hostAdd(key) {
     const [menuId, temp] = key.split('|');
+    if (optsOf(menuId).length) return openSheet({ mode: 'hostadd', key: menuId + '|' + temp });
     if (navigator.vibrate) { try { navigator.vibrate(25); } catch (e) {} }
     showSnack(`${drinkName(menuId, temp)} +1`, true);
     try { lastId = await addOrder({ menuId, temp, by: 'host' }); } catch (e) {}
@@ -839,7 +881,7 @@
   const toast = (msg) => showSnack(msg, false);
   // 한 잔 빼기: 총무가 대신 누른 것(이름 없는 것 먼저)부터 빼고, 일행이 링크로 주문한 것은 물어보고 빼요
   function removeLastOf(key) {
-    const list = S.orders.filter((o) => keyOf(o) === key).reverse();
+    const list = S.orders.filter((o) => keyOf(o) === key || baseKey(o) === key).reverse();
     const o = list.find((x) => x.by !== 'guest' && !x.name) || list.find((x) => x.by !== 'guest') || list[0];
     if (!o) return;
     if (o.by === 'guest' && !confirm(`${o.name || '이름 없는 분'}님이 링크로 주문한 음료예요. 지울까요?`)) return;
@@ -931,11 +973,11 @@
   function renderQty() {
     if (!qtyKey) return;
     const [menuId, temp] = qtyKey.split('|');
-    const items = S.orders.filter((o) => keyOf(o) === qtyKey);
+    const items = S.orders.filter((o) => baseKey(o) === qtyKey);
     $('qtyTitle').textContent = drinkName(menuId, temp);
     $('qtyBody').innerHTML = `
       <div class="qty"><button data-qminus="${qtyKey}" aria-label="한 잔 빼기" ${items.length ? '' : 'disabled'}>−</button><b>${items.length}</b><button data-qplus="${qtyKey}" aria-label="한 잔 더하기">+</button></div>
-      ${items.length ? `<div class="qlist">${items.slice().reverse().map((o) => `<div class="qi"><span>${o.name ? esc(o.name) : '이름 없음'}<small>${o.by === 'guest' ? '링크로 주문' : '총무가 누름'}${o.note ? ' · ' + esc(o.note) : ''}</small></span><button data-qdel="${o.id}">빼기</button></div>`).join('')}</div>` : '<p class="hint" style="text-align:center;margin-top:8px">아직 주문이 없어요.</p>'}`;
+      ${items.length ? `<div class="qlist">${items.slice().reverse().map((o) => `<div class="qi"><span>${o.name ? esc(o.name) : '이름 없음'}${optTag(o.opt)}<small>${o.by === 'guest' ? '링크로 주문' : '총무가 누름'}${o.note ? ' · ' + esc(o.note) : ''}</small></span><button data-qedit="${o.id}" style="color:var(--ink)">고치기</button><button data-qdel="${o.id}">빼기</button></div>`).join('')}</div>` : '<p class="hint" style="text-align:center;margin-top:8px">아직 주문이 없어요.</p>'}`;
   }
   const isDefaultMenu = () => S.menu.length === DEFAULT_MENU.length && S.menu.every((m, i) => m.id === DEFAULT_MENU[i].id && m.name === DEFAULT_MENU[i].name && m.t === DEFAULT_MENU[i].t);
   // 머리글에서 모임 이름 바로 고치기
@@ -973,7 +1015,7 @@
     $('showBody').innerHTML = `<div style="font-size:22px;font-weight:700;color:#666;margin-bottom:6px">주문할게요 🙏</div>` +
       gs.map((g) => {
         const notes = g.items.filter((o) => o.note).map((o) => o.note);
-        return `<div class="line"><span>${esc(drinkName(g.menuId, g.temp))}${notes.length ? `<br><small style="font-size:.55em;color:#555">(${esc(summarizeNotes(notes))})</small>` : ''}</span><span>${g.items.length}잔</span></div>`;
+        return `<div class="line"><span>${esc(drinkName(g.menuId, g.temp, g.opt))}${notes.length ? `<br><small style="font-size:.55em;color:#555">(${esc(summarizeNotes(notes))})</small>` : ''}</span><span>${g.items.length}잔</span></div>`;
       }).join('') + `<div class="sum">총 ${S.orders.length}잔</div>` + (priceLine() ? `<div style="text-align:right;font-size:20px;color:#555;margin-top:4px">${priceLine()}</div>` : '');
     $('showFoot').innerHTML = `<button id="showClose">닫기</button>`;
     $('show').classList.add('on'); keepAwake();
@@ -984,7 +1026,7 @@
     const left = g.items.filter((o) => !o.got);
     const names = left.map((o) => o.name).filter(Boolean);
     const unnamed = left.length - names.length;
-    $('showBody').innerHTML = `<div class="what">${esc(drinkName(g.menuId, g.temp))}</div>
+    $('showBody').innerHTML = `<div class="what">${esc(drinkName(g.menuId, g.temp, g.opt))}</div>
       <div class="who">${esc(names.join(', '))}${unnamed ? `${names.length ? '<br>+ ' : ''}${unnamed}분` : ''}<br><span style="font-size:.6em;color:#666">받아가세요! 🙋</span></div>`;
     $('showFoot').innerHTML = `<button class="alt" id="showClose">닫기</button><button data-allgot="${key}">✔ 다 드렸어요</button>`;
     $('show').classList.add('on'); keepAwake();
@@ -1013,7 +1055,7 @@
   function orderText() {
     return `☕ ${S.title || '단체 주문'} (총 ${S.orders.length}잔)\n` + groups().map((g) => {
       const who = g.items.map((o) => o.name).filter(Boolean);
-      return `• ${drinkName(g.menuId, g.temp)} ${g.items.length}잔${who.length ? ` (${who.join(', ')})` : ''}`;
+      return `• ${drinkName(g.menuId, g.temp, g.opt)} ${g.items.length}잔${who.length ? ` (${who.join(', ')})` : ''}`;
     }).join('\n');
   }
 
@@ -1108,7 +1150,7 @@
       const k = name.replace(/\s/g, '');
       if (k.length < 2 || k.length > 16 || seen.has(k) || (!opt.noFix && SKIP_WORDS.test(k))) continue;
       seen.add(k);
-      out.push({ name, t: it.t || guessTemp(name), price: it.price || 0, checked: it.checked !== false });
+      out.push(Object.assign({ name, t: it.t || guessTemp(name), price: it.price || 0, checked: it.checked !== false }, it.opts && it.opts.length ? { opts: it.opts } : {}));
     }
     return out.slice(0, 80);
   }
@@ -1128,6 +1170,7 @@
 - t: 온도 선택. 'Only Hot', 'HOT ONLY' 등 따뜻하게만 → "hot", 아이스 전용이나 에이드·스무디·주스·아이스티·프라페 → "ice", 아이스크림·디저트·빵 → "none", 그 외 음료 → "both".
 - price: 원 단위 정수. "6.5"처럼 천 원 단위로 적혀 있으면 6500. 메뉴 옆에 가격이 없고 분류 제목 옆에 가격이 있으면 그 가격을 쓰기. 모르면 0.
 - 제외: 분류 제목(Coffee, Tea 등), 메뉴 설명 문구, 원두/블렌드 소개, 샷 추가·디카페인·우유 변경 같은 옵션, 가게 이름, 주소, 전화번호, 영업시간, 이벤트 문구.
+- opts: 같은 메뉴에서 맛이나 종류를 골라야 하면 그 목록 (예: 에이드 → ["자몽","레몬","망고","유자"]). 없으면 빈 배열. 고르는 맛을 따로 메뉴로 나누지 말기.
 - 같은 메뉴는 한 번만.`;
     const parts = [];
     for (const c of canvases) parts.push({ inline_data: { mime_type: 'image/jpeg', data: await blobToB64(c) } });
@@ -1141,7 +1184,7 @@
           type: 'ARRAY',
           items: {
             type: 'OBJECT',
-            properties: { name: { type: 'STRING' }, t: { type: 'STRING', enum: ['both', 'ice', 'hot', 'none'] }, price: { type: 'INTEGER' } },
+            properties: { name: { type: 'STRING' }, t: { type: 'STRING', enum: ['both', 'ice', 'hot', 'none'] }, price: { type: 'INTEGER' }, opts: { type: 'ARRAY', items: { type: 'STRING' } } },
             required: ['name', 't'],
           },
         },
@@ -1159,7 +1202,7 @@
       const j = await res.json();
       const text = (((j.candidates || [])[0] || {}).content || {}).parts?.map((p) => p.text || '').join('') || '[]';
       const arr = JSON.parse(text);
-      return finalizeItems(arr.map((x) => ({ name: cleanName(String(x.name || '')), t: ['both', 'ice', 'hot', 'none'].includes(x.t) ? x.t : '', price: +x.price || 0 })));
+      return finalizeItems(arr.map((x) => ({ name: cleanName(String(x.name || '')), t: ['both', 'ice', 'hot', 'none'].includes(x.t) ? x.t : '', price: +x.price || 0, opts: Array.isArray(x.opts) ? parseOpts(x.opts.join(',')) : [] })));
     }
     throw lastErr || new Error('ai');
   }
@@ -1530,12 +1573,13 @@
   // AI 앱에 보낼 부탁 문구
   const AI_PROMPT = `첨부한 카페 메뉴판 사진에서 주문할 수 있는 메뉴를 모두 찾아, 아래 형식의 표로만 답해 주세요. 다른 설명은 쓰지 마세요.
 
-| 이름 | 온도 | 가격 |
-|---|---|---|
+| 이름 | 온도 | 가격 | 옵션 |
+|---|---|---|---|
 
 - 이름: 한글 메뉴 이름만 (영어 이름, 설명 제외). 메뉴판에 적힌 그대로.
 - 온도: '아이스+따뜻', '아이스만', '따뜻만', '구분없음' 중 하나. ONLY ICE 표시나 에이드·스무디·주스·프라페·쉐이크는 '아이스만', ONLY HOT은 '따뜻만', 디저트·빵은 '구분없음'.
 - 가격: 원 단위 숫자 (예: 3.5 → 3500). 분류 제목 옆에만 가격이 있으면 그 가격을 쓰고, 모르면 0.
+- 옵션: 같은 메뉴에서 맛이나 종류를 골라야 하면 쉼표로 (예: 에이드 → 자몽, 레몬, 망고, 유자). 없으면 비워 두기. 고르는 맛을 따로 메뉴로 나누지 마세요.
 - 분류 제목(커피, 라떼 등), 옵션(샷 추가, 시럽 추가 등), 가게 이름·영업시간은 빼 주세요.
 - 메뉴판에 여러 장이 있으면 모두 합쳐 주세요.`;
   const AI_PENDING = 'groupCafeOrder.aiPending';
@@ -1567,14 +1611,15 @@
       // 머리 줄: '메뉴/이름', '가격', '온도'가 어느 칸인지 기억해요
       const isHead = (c) => /^(이름|메뉴|메뉴명|메뉴 이름|품목|음료|name|menu)$/i.test(c);
       if (cells.some(isHead) && !cells.some((c) => won(c))) {
-        col = { name: cells.findIndex(isHead), price: cells.findIndex((c) => /가격|금액|price/i.test(c)), temp: cells.findIndex((c) => /온도|ice|hot|아이스|따뜻/i.test(c)) };
+        col = { name: cells.findIndex(isHead), price: cells.findIndex((c) => /가격|금액|price/i.test(c)), temp: cells.findIndex((c) => /온도|ice|hot|아이스|따뜻/i.test(c)), opt: cells.findIndex((c) => /옵션|맛|종류|선택|option/i.test(c)) };
         continue;
       }
-      let name = '', price = 0, t = '';
+      let name = '', price = 0, t = '', opts = [];
       if (col && cells.length > col.name) {
         name = cells[col.name] || '';
         if (col.price >= 0) price = won(cells[col.price] || '');
         if (col.temp >= 0) t = tempOf(cells[col.temp] || '');
+        if (col.opt >= 0) opts = parseOpts(cells[col.opt] || '');
       }
       for (const c of (name ? [] : cells)) {
         if (!name && /[가-힣]/.test(c) && !tempOf(c)) { name = c; continue; }
@@ -1593,7 +1638,9 @@
       if (/추가|옵션|변경|사이즈업|할인/.test(name.replace(/\s/g, ''))) continue;
       name = name.replace(/^\d+[.)]\s*|^[-•]\s*/, '').replace(/\([^)]*\)/g, '').replace(/[^가-힣a-zA-Z0-9\s/&+]/g, ' ').replace(/\s+/g, ' ').trim();
       if (!/[가-힣]{2}/.test(name.replace(/\s/g, ''))) continue;
-      items.push({ name, t: t || guessTemp(name), price });
+      // 머리 줄이 없을 때: 쉼표로 나열된 한글 칸은 맛 목록으로
+      if (!opts.length) { const oc = cells.find((c) => c !== name && /[가-힣]/.test(c) && /,/.test(c) && !won(c) && !tempOf(c)); if (oc) opts = parseOpts(oc); }
+      items.push(Object.assign({ name, t: t || guessTemp(name), price }, opts.length > 1 ? { opts } : {}));
     }
     return finalizeItems(items, { noFix: true });
   }
@@ -1627,7 +1674,7 @@
     const opts = (t) => ['both', 'ice', 'hot', 'none'].map((v) => `<option value="${v}" ${v === t ? 'selected' : ''}>${{ both: '아이스+따뜻', ice: '아이스만', hot: '따뜻만', none: '구분없음' }[v]}</option>`).join('');
     $('scanBody').innerHTML = items.length
       ? `<p class="hint">${esc(note)} 잘못 읽힌 글자는 고치고, 필요 없는 줄은 체크를 빼 주세요.</p>
-         <div id="scanList">${items.map((it) => `<div class="scan-row" data-price="${it.price || 0}"><input type="checkbox" ${it.checked ? 'checked' : ''} aria-label="넣기"><div class="scan-name"><input type="text" value="${esc(it.name)}" maxlength="30">${it.price ? `<small>${won(it.price)}</small>` : ''}</div><select>${opts(it.t)}</select></div>`).join('')}</div>
+         <div id="scanList">${items.map((it) => `<div class="scan-row" data-price="${it.price || 0}"><input type="checkbox" ${it.checked ? 'checked' : ''} aria-label="넣기"><div class="scan-name"><input type="text" value="${esc(it.name)}" maxlength="30">${it.price ? `<small>${won(it.price)}</small>` : ''}${it.opts && it.opts.length ? `<input type="text" class="scan-opts" value="${esc(it.opts.join(', '))}" maxlength="120" aria-label="맛" style="font-size:14px;padding:6px 10px;margin-top:2px">` : ''}</div><select>${opts(it.t)}</select></div>`).join('')}</div>
          <button class="big-btn" id="scanReplace">이 메뉴로 바꾸기</button>
          <div class="two"><button class="big-btn ghost" id="scanAppend">기존 메뉴에 더하기</button><button class="big-btn ghost" id="scanCancel">취소</button></div>`
       : `<p class="hint">${esc(note)} 사진이 흐리거나 기울어지면 잘 안 읽혀요. 메뉴판을 정면에서 가까이, 밝게 다시 찍어 주세요.</p>
@@ -1636,7 +1683,11 @@
   function applyScan(replace) {
     const picked = [...document.querySelectorAll('#scanList .scan-row')]
       .filter((r) => r.querySelector('input[type=checkbox]').checked)
-      .map((r) => ({ id: 'u' + rid(6), name: r.querySelector('input[type=text]').value.trim(), t: r.querySelector('select').value, price: +r.dataset.price || 0 }))
+      .map((r) => {
+        const m = { id: 'u' + rid(6), name: r.querySelector('input[type=text]').value.trim(), t: r.querySelector('select').value, price: +r.dataset.price || 0 };
+        const o = r.querySelector('.scan-opts'), opts = o ? parseOpts(o.value) : [];
+        return opts.length ? Object.assign(m, { opts }) : m;
+      })
       .filter((m) => m.name);
     if (!picked.length) return toast('선택된 메뉴가 없어요');
     if (replace) S.cafeId = null;   // 새 메뉴판은 아직 저장 전
@@ -1658,14 +1709,36 @@
     }
     if (d.cafe) return useCafe(d.cafe);
     if (d.cafedel) return deleteCafe(d.cafedel);
-    if (d.qplus) { const [menuId, temp] = d.qplus.split('|'); addOrder({ menuId, temp, by: 'host' }).catch(() => {}); return; }
+    if (d.qplus) {
+      const [menuId, temp] = d.qplus.split('|');
+      if (optsOf(menuId).length) { $('qtyModal').classList.remove('on'); return openSheet({ mode: 'hostadd', key: d.qplus }); }
+      addOrder({ menuId, temp, by: 'host' }).catch(() => {}); return;
+    }
     if (d.qminus) return removeLastOf(d.qminus);
+    if (d.qedit) {
+      const o = S.orders.find((x) => x.id === d.qedit); if (!o) return;
+      $('qtyModal').classList.remove('on');
+      return openSheet({ mode: 'edit', id: o.id, key: keyOf(o), back: 'qty' });
+    }
     if (d.qdel) {
       const o = S.orders.find((x) => x.id === d.qdel); if (!o) return;
       if (o.by === 'guest' && !confirm(`${o.name || '이름 없는 분'}님이 링크로 주문한 음료예요. 지울까요?`)) return;
       return removeOrder(o.id);
     }
-    if (d.plus) { const [menuId, temp] = d.plus.split('|'); addOrder({ menuId, temp, by: 'host' }).catch(() => {}); return; }
+    if (d.plus) { const [menuId, temp, opt] = d.plus.split('|'); addOrder(opt ? { menuId, temp, opt, by: 'host' } : { menuId, temp, by: 'host' }).catch(() => {}); return; }
+    if (d.opt !== undefined) {   // 맛 고르기 칩 (하나만)
+      $('optQuick').dataset.cur = d.opt; $('optQuick').classList.remove('need'); $('optSec').classList.remove('need');
+      document.querySelectorAll('#optQuick button').forEach((x) => x.classList.toggle('on', x === b));
+      return;
+    }
+    if (d.opts) {   // 메뉴 편집에서 맛 적기
+      const m = S.menu.find((x) => x.id === d.opts); if (!m) return;
+      const v = prompt(`'${m.name}'에서 고를 수 있는 맛을 쉼표로 적어 주세요.\n예: 자몽, 레몬, 유자 (없애려면 비워 두기)`, (m.opts || []).join(', '));
+      if (v === null) return;
+      const list = parseOpts(v);
+      if (list.length) m.opts = list; else delete m.opts;
+      return pushMenu();
+    }
     if (d.minus) return removeLastOf(d.minus);
     if (d.got) { const o = S.orders.find((x) => x.id === d.got); if (o) patchOrder(o.id, { got: !o.got }); return; }
     if (d.call) return callOut(d.call);
@@ -1700,7 +1773,7 @@
         break;
       }
       case 'nameOk': sheetOk(); break;
-      case 'nameCancel': $('nameModal').classList.remove('on'); break;
+      case 'nameCancel': $('nameModal').classList.remove('on'); if (sheet && sheet.back === 'qty') openQty(qtyKey); break;
       case 'showOrder': showOrder(); break;
       case 'showClose': $('show').classList.remove('on'); if (wake) { wake.release(); wake = null; } break;
       case 'copyOrder': if (S.orders.length) copyText(orderText(), '주문 내용을 복사했어요'); break;
@@ -1730,7 +1803,8 @@
         const name = $('newMenu').value.trim();
         if (!name) return $('newMenu').focus();
         const t = document.querySelector('#tempSeg button.on').dataset.t;
-        S.menu.push({ id: 'u' + rid(6), name, t }); $('newMenu').value = ''; pushMenu();
+        const opts = parseOpts($('newMenuOpts').value);
+        S.menu.push(Object.assign({ id: 'u' + rid(6), name, t }, opts.length ? { opts } : {})); $('newMenu').value = ''; $('newMenuOpts').value = ''; pushMenu();
         toast(`'${name}' 메뉴를 추가했어요`); break;
       }
       case 'resetMenu': if (confirm('기본 메뉴로 되돌릴까요? (모은 주문은 유지돼요)')) { S.cafeId = null; S.menu = DEFAULT_MENU.slice(); pushMenu(); } break;
