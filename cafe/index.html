@@ -955,11 +955,11 @@
   }
 
   // 새 기능 알림(앱을 열면 한 번) · 사용 설명서 (설정에서)
-  const NEWS_VER = '2026-11-ai-cafes', NEWS_KEY = 'groupCafeOrder.news';
+  const NEWS_VER = '2026-11-sheet-options', NEWS_KEY = 'groupCafeOrder.news';
   function showImage(kind) {
     const news = kind === 'news';
-    $('imgView').src = news ? 'whatsnew.jpg' : 'manual.jpg';
-    $('imgView').alt = news ? '새로 생긴 기능: AI 앱으로 메뉴판 읽기, 자주 가는 카페 메뉴 저장' : '사용 설명서: 준비하기, 링크 보내기, 각자 고르기, 주문하기, 나눠주기';
+    $('imgView').src = news ? 'whatsnew.jpg?v=' + NEWS_VER : 'manual.jpg';
+    $('imgView').alt = news ? '새로 생긴 기능: 주문서 사진으로 공유, 맛 고르기, 길게 눌러 고치기, AI 앱으로 메뉴판 읽기, 자주 가는 카페 메뉴 저장' : '사용 설명서: 준비하기, 링크 보내기, 각자 고르기, 주문하기, 나눠주기';
     $('imgFoot').innerHTML = news
       ? '<button class="big-btn ghost" id="openManual">📖 사용 설명서</button><button class="big-btn" id="imgClose">확인</button>'
       : '<button class="big-btn" id="imgClose">닫기</button>';
