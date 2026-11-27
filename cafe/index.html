@@ -306,6 +306,7 @@
   <section class="page host-only" id="p-give">
     <p class="hint">음료가 나오면 <b>[부르기]</b>를 눌러 크게 보여 주고, 건넨 잔은 눌러서 체크하세요.</p>
     <div id="giveHead"></div>
+    <button class="big-btn ghost" id="shareSheet" style="margin:0 0 12px">🖼️ 주문서 이미지로 공유 (카톡)</button>
     <div id="giveList"></div>
   </section>
 
@@ -780,6 +781,7 @@
       ? `<div style="font-weight:800;font-size:19px">${total}잔 중 <span style="color:var(--ok)">${got}잔</span> 전달 완료</div>
          <div class="progress"><i style="width:${(got / total) * 100}%"></i></div>`
       : '';
+    $('shareSheet').style.display = gs.length ? '' : 'none';
     $('giveList').innerHTML = gs.length
       ? gs.map((g) => {
           const done = g.items.every((o) => o.got);
@@ -965,6 +967,84 @@
     $('snack').classList.remove('on');
     $('imgModal').classList.add('on');
     if (news) { try { localStorage.setItem(NEWS_KEY, NEWS_VER); } catch (e) {} }
+  }
+  // ---------- 주문서 이미지 (나눠주기) ----------
+  // 음료마다 누가 주문했는지(맛·요청사항 포함)를 그림으로 만들어 카톡 등으로 보내요
+  function drawOrderSheet() {
+    const W = 1080, PAD = 64, FONT = '"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif';
+    const gs = groups(), cur = curCafe();
+    const c = document.createElement('canvas'), g = c.getContext('2d');
+    const font = (px, w) => { g.font = `${w || 400} ${px}px ${FONT}`; };
+    // 이름 목록을 폭에 맞게 여러 줄로
+    const wrap = (parts, maxW) => {
+      const lines = []; let line = '';
+      parts.forEach((t) => { const next = line ? line + '   ' + t : t; if (line && g.measureText(next).width > maxW) { lines.push(line); line = t; } else line = next; });
+      if (line) lines.push(line); return lines;
+    };
+    const d = new Date(), wk = '일월화수목금토'[d.getDay()];
+    const when = `${d.getMonth() + 1}월 ${d.getDate()}일 (${wk}) ${d.getHours() < 12 ? '오전' : '오후'} ${(d.getHours() % 12) || 12}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const sub = [when, cur ? cur.name : '', `총 ${S.orders.length}잔`].filter(Boolean).join(' · ');
+    // 1) 높이 계산
+    const rows = gs.map((grp) => {
+      const names = grp.items.map((o) => (o.name || '이름 없음') + (o.note ? `(${o.note})` : ''));
+      font(32, 500); const lines = wrap(names, W - PAD * 2 - 24);
+      return { grp, lines };
+    });
+    let H = 250 + rows.reduce((a, r) => a + 84 + r.lines.length * 46 + 26, 0) + 130;
+    c.width = W; c.height = H;
+    // 2) 그리기
+    g.fillStyle = '#faf6f1'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#6b3e26'; g.fillRect(0, 0, W, 14);
+    g.textBaseline = 'alphabetic';
+    g.fillStyle = '#2b1d14'; font(56, 800); g.fillText('☕ ' + (S.title || '단체 음료 주문'), PAD, 112);
+    g.fillStyle = '#7a6a5e'; font(30, 500); g.fillText(sub, PAD, 162);
+    g.fillStyle = '#6b3e26'; font(30, 700); g.fillText('자기 이름을 찾아 음료를 가져가세요 🙋', PAD, 214);
+    let y = 250;
+    rows.forEach(({ grp, lines }) => {
+      const h = 84 + lines.length * 46 + 26;
+      g.fillStyle = '#ffffff'; g.strokeStyle = '#e8ddd2'; g.lineWidth = 2;
+      g.beginPath(); if (g.roundRect) g.roundRect(PAD - 20, y, W - (PAD - 20) * 2, h - 14, 22); else g.rect(PAD - 20, y, W - (PAD - 20) * 2, h - 14); g.fill(); g.stroke();
+      let x = PAD;
+      if (grp.temp) {   // 아이스·따뜻 표시
+        const t = grp.temp === 'ICE' ? '아이스' : '따뜻';
+        font(26, 800); const tw = g.measureText(t).width + 24;
+        g.fillStyle = grp.temp === 'ICE' ? '#e7f1fa' : '#fdeee5'; g.beginPath(); if (g.roundRect) g.roundRect(x, y + 26, tw, 40, 10); else g.rect(x, y + 26, tw, 40); g.fill();
+        g.fillStyle = grp.temp === 'ICE' ? '#1f6fb2' : '#c2410c'; g.fillText(t, x + 12, y + 56); x += tw + 14;
+      }
+      g.fillStyle = '#2b1d14'; font(38, 800);
+      const title = menuById(grp.menuId).name + (grp.opt ? ` (${grp.opt})` : '');
+      g.fillText(title, x, y + 60);
+      const cnt = `${grp.items.length}잔`; font(38, 800); g.fillStyle = '#6b3e26';
+      g.fillText(cnt, W - PAD - g.measureText(cnt).width, y + 60);
+      g.fillStyle = '#4a3b30'; font(32, 500);
+      lines.forEach((ln, i) => g.fillText(ln, PAD, y + 112 + i * 46));
+      y += h;
+    });
+    g.fillStyle = '#9c8c7f'; font(24, 500);
+    g.fillText('단체 커피 주문 · sm-garden.github.io/pop-up-labs/cafe', PAD, H - 56);
+    return c;
+  }
+  async function shareOrderSheet() {
+    if (!S.orders.length) return;
+    const btn = $('shareSheet'), label = btn.textContent;
+    btn.disabled = true; btn.textContent = '주문서를 만드는 중…';
+    try {
+      const blob = await new Promise((ok) => drawOrderSheet().toBlob(ok, 'image/png'));
+      const d = new Date(), two = (n) => String(n).padStart(2, '0');
+      const file = new File([blob], `order-${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}.png`, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: (S.title || '단체 음료') + ' 주문서' }); }
+        catch (e) { if (!e || e.name !== 'AbortError') showSheetImage(blob, file.name); }
+      } else showSheetImage(blob, file.name);   // 공유를 못 하는 브라우저: 그림을 보여 주고 저장하게
+    } catch (e) { toast('주문서를 만들지 못했어요'); }
+    btn.disabled = false; btn.textContent = label;
+  }
+  function showSheetImage(blob, name) {
+    const url = URL.createObjectURL(blob);
+    $('imgView').src = url; $('imgView').alt = '주문서';
+    $('imgFoot').innerHTML = `<a class="big-btn ghost" id="sheetSave" style="text-align:center;text-decoration:none">💾 사진 저장</a><button class="big-btn" id="imgClose">닫기</button>`;
+    const a = $('sheetSave'); a.href = url; a.download = name;
+    $('imgScroll').scrollTop = 0; $('snack').classList.remove('on'); $('imgModal').classList.add('on');
   }
   function maybeShowNews() {
     if (GUEST) return;
@@ -1815,6 +1895,7 @@
       case 'nameCancel': $('nameModal').classList.remove('on'); if (sheet && sheet.back === 'qty') openQty(qtyKey); break;
       case 'showOrder': showOrder(); break;
       case 'showClose': $('show').classList.remove('on'); if (wake) { wake.release(); wake = null; } break;
+      case 'shareSheet': shareOrderSheet(); break;
       case 'copyOrder': if (S.orders.length) copyText(orderText(), '주문 내용을 복사했어요'); break;
       case 'startRoom': startRoom(); break;
       case 'shareBtn': share(); break;
